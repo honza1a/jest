@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -29,8 +29,8 @@ export type SerializableResolver = {
 type WorkerData = {
   config: Config.ProjectConfig;
   globalConfig: Config.GlobalConfig;
-  path: Config.Path;
-  context?: TestRunnerSerializedContext;
+  path: string;
+  context: TestRunnerSerializedContext;
 };
 
 // Make sure uncaught errors are logged before we exit.
@@ -59,9 +59,9 @@ const formatError = (error: string | ErrorWithCode): SerializableError => {
 
 const resolvers = new Map<string, Resolver>();
 const getResolver = (config: Config.ProjectConfig) => {
-  const resolver = resolvers.get(config.name);
+  const resolver = resolvers.get(config.id);
   if (!resolver) {
-    throw new Error('Cannot find resolver for: ' + config.name);
+    throw new Error(`Cannot find resolver for: ${config.id}`);
   }
   return resolver;
 };
@@ -77,7 +77,7 @@ export function setup(setupData: {
     const moduleMap = HasteMap.getStatic(config).getModuleMapFromJSON(
       serializableModuleMap,
     );
-    resolvers.set(config.name, Runtime.createResolver(config, moduleMap));
+    resolvers.set(config.id, Runtime.createResolver(config, moduleMap));
   }
 }
 
@@ -97,7 +97,7 @@ export async function worker({
       globalConfig,
       config,
       getResolver(config),
-      context && {
+      {
         ...context,
         changedFiles: context.changedFiles && new Set(context.changedFiles),
         sourcesRelatedToTestsInChangedFiles:
@@ -106,7 +106,7 @@ export async function worker({
       },
       sendMessageToJest,
     );
-  } catch (error) {
+  } catch (error: any) {
     throw formatError(error);
   }
 }

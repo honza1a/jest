@@ -1,20 +1,18 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
-'use strict';
-
 import LeakDetector from '../index';
 
-const gc = global.gc;
+const gc = globalThis.gc;
 
 // Some tests override the "gc" value. Let's make sure we roll it back to its
 // previous value after executing the test.
 afterEach(() => {
-  global.gc = gc;
+  globalThis.gc = gc;
 });
 
 it('complains if the value is a primitive', () => {
@@ -32,17 +30,17 @@ it('does not show the GC if hidden', async () => {
   const detector = new LeakDetector({});
 
   // @ts-expect-error: purposefully removed
-  global.gc = undefined;
+  globalThis.gc = undefined;
   await detector.isLeaking();
-  expect(global.gc).not.toBeDefined();
+  expect(globalThis.gc).toBeUndefined();
 });
 
 it('does not hide the GC if visible', async () => {
   const detector = new LeakDetector({});
 
-  global.gc = () => {};
+  globalThis.gc = () => {};
   await detector.isLeaking();
-  expect(global.gc).toBeDefined();
+  expect(globalThis.gc).toBeDefined();
 });
 
 it('correctly checks simple leaks', async () => {

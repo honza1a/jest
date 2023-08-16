@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,14 +8,98 @@
 import type {ForegroundColor} from 'chalk';
 import type {ReportOptions} from 'istanbul-reports';
 import type {Arguments} from 'yargs';
+import type {SnapshotFormat} from '@jest/schemas';
 
 type CoverageProvider = 'babel' | 'v8';
 
-type Timers = 'real' | 'fake' | 'modern' | 'legacy';
+export type FakeableAPI =
+  | 'Date'
+  | 'hrtime'
+  | 'nextTick'
+  | 'performance'
+  | 'queueMicrotask'
+  | 'requestAnimationFrame'
+  | 'cancelAnimationFrame'
+  | 'requestIdleCallback'
+  | 'cancelIdleCallback'
+  | 'setImmediate'
+  | 'clearImmediate'
+  | 'setInterval'
+  | 'clearInterval'
+  | 'setTimeout'
+  | 'clearTimeout';
 
-export type Path = string;
+export type GlobalFakeTimersConfig = {
+  /**
+   * Whether fake timers should be enabled globally for all test files.
+   *
+   * @defaultValue
+   * The default is `false`.
+   */
+  enableGlobally?: boolean;
+};
 
-export type Glob = string;
+export type FakeTimersConfig = {
+  /**
+   * If set to `true` all timers will be advanced automatically
+   * by 20 milliseconds every 20 milliseconds. A custom time delta
+   * may be provided by passing a number.
+   *
+   * @defaultValue
+   * The default is `false`.
+   */
+  advanceTimers?: boolean | number;
+  /**
+   * List of names of APIs (e.g. `Date`, `nextTick()`, `setImmediate()`,
+   * `setTimeout()`) that should not be faked.
+   *
+   * @defaultValue
+   * The default is `[]`, meaning all APIs are faked.
+   */
+  doNotFake?: Array<FakeableAPI>;
+  /**
+   * Sets current system time to be used by fake timers.
+   *
+   * @defaultValue
+   * The default is `Date.now()`.
+   */
+  now?: number | Date;
+  /**
+   * The maximum number of recursive timers that will be run when calling
+   * `jest.runAllTimers()`.
+   *
+   * @defaultValue
+   * The default is `100_000` timers.
+   */
+  timerLimit?: number;
+  /**
+   * Use the old fake timers implementation instead of one backed by
+   * [`@sinonjs/fake-timers`](https://github.com/sinonjs/fake-timers).
+   *
+   * @defaultValue
+   * The default is `false`.
+   */
+  legacyFakeTimers?: false;
+};
+
+export type LegacyFakeTimersConfig = {
+  /**
+   * Use the old fake timers implementation instead of one backed by
+   * [`@sinonjs/fake-timers`](https://github.com/sinonjs/fake-timers).
+   *
+   * @defaultValue
+   * The default is `false`.
+   */
+  legacyFakeTimers?: true;
+};
+
+type FakeTimers = GlobalFakeTimersConfig &
+  (
+    | (FakeTimersConfig & {
+        now?: Exclude<FakeTimersConfig['now'], Date>;
+      })
+    | LegacyFakeTimersConfig
+  );
 
 export type HasteConfig = {
   /** Whether to hash files using SHA-1. */
@@ -30,7 +114,7 @@ export type HasteConfig = {
    *   Projects with `watchman` set to true will error if this option is set to true.
    */
   enableSymlinks?: boolean;
-  /** Path to a custom implementation of Haste. */
+  /** string to a custom implementation of Haste. */
   hasteImplModulePath?: string;
   /** All platforms to target, e.g ['ios', 'android']. */
   platforms?: Array<string>;
@@ -38,6 +122,8 @@ export type HasteConfig = {
   throwOnModuleCollision?: boolean;
   /** Custom HasteMap module */
   hasteMapModulePath?: string;
+  /** Whether to retain all files, allowing e.g. search for tests in `node_modules`. */
+  retainAllFiles?: boolean;
 };
 
 export type CoverageReporterName = keyof ReportOptions;
@@ -64,7 +150,7 @@ export type DefaultOptions = {
   automock: boolean;
   bail: number;
   cache: boolean;
-  cacheDirectory: Path;
+  cacheDirectory: string;
   changedFilesWithAncestor: boolean;
   ci: boolean;
   clearMocks: boolean;
@@ -76,8 +162,9 @@ export type DefaultOptions = {
   detectOpenHandles: boolean;
   errorOnDeprecated: boolean;
   expand: boolean;
-  extensionsToTreatAsEsm: Array<Path>;
-  forceCoverageMatch: Array<Glob>;
+  extensionsToTreatAsEsm: Array<string>;
+  fakeTimers: FakeTimers;
+  forceCoverageMatch: Array<string>;
   globals: ConfigGlobals;
   haste: HasteConfig;
   injectGlobals: boolean;
@@ -91,35 +178,36 @@ export type DefaultOptions = {
   noStackTrace: boolean;
   notify: boolean;
   notifyMode: NotifyMode;
+  openHandlesTimeout: number;
   passWithNoTests: boolean;
   prettierPath: string;
   resetMocks: boolean;
   resetModules: boolean;
   restoreMocks: boolean;
-  roots: Array<Path>;
+  roots: Array<string>;
   runTestsByPath: boolean;
   runner: string;
-  setupFiles: Array<Path>;
-  setupFilesAfterEnv: Array<Path>;
+  setupFiles: Array<string>;
+  setupFilesAfterEnv: Array<string>;
   skipFilter: boolean;
   slowTestThreshold: number;
-  snapshotSerializers: Array<Path>;
+  snapshotFormat: SnapshotFormat;
+  snapshotSerializers: Array<string>;
   testEnvironment: string;
   testEnvironmentOptions: Record<string, unknown>;
   testFailureExitCode: string | number;
   testLocationInResults: boolean;
-  testMatch: Array<Glob>;
+  testMatch: Array<string>;
   testPathIgnorePatterns: Array<string>;
   testRegex: Array<string>;
   testRunner: string;
   testSequencer: string;
-  testURL: string;
-  timers: Timers;
-  transformIgnorePatterns: Array<Glob>;
+  transformIgnorePatterns: Array<string>;
   useStderr: boolean;
   watch: boolean;
   watchPathIgnorePatterns: Array<string>;
   watchman: boolean;
+  workerThreads: boolean;
 };
 
 export type DisplayName = {
@@ -139,16 +227,13 @@ export type InitialOptions = Partial<{
   automock: boolean;
   bail: boolean | number;
   cache: boolean;
-  cacheDirectory: Path;
+  cacheDirectory: string;
   ci: boolean;
   clearMocks: boolean;
   changedFilesWithAncestor: boolean;
   changedSince: string;
   collectCoverage: boolean;
-  collectCoverageFrom: Array<Glob>;
-  collectCoverageOnlyFrom: {
-    [key: string]: boolean;
-  };
+  collectCoverageFrom: Array<string>;
   coverageDirectory: string;
   coveragePathIgnorePatterns: Array<string>;
   coverageProvider: CoverageProvider;
@@ -159,17 +244,18 @@ export type InitialOptions = Partial<{
   detectOpenHandles: boolean;
   displayName: string | DisplayName;
   expand: boolean;
-  extensionsToTreatAsEsm: Array<Path>;
-  extraGlobals: Array<string>;
-  filter: Path;
+  extensionsToTreatAsEsm: Array<string>;
+  fakeTimers: FakeTimers;
+  filter: string;
   findRelatedTests: boolean;
-  forceCoverageMatch: Array<Glob>;
+  forceCoverageMatch: Array<string>;
   forceExit: boolean;
   json: boolean;
   globals: ConfigGlobals;
   globalSetup: string | null | undefined;
   globalTeardown: string | null | undefined;
   haste: HasteConfig;
+  id: string;
   injectGlobals: boolean;
   reporters: Array<string | ReporterConfig>;
   logHeapUsage: boolean;
@@ -179,63 +265,61 @@ export type InitialOptions = Partial<{
   maxWorkers: number | string;
   moduleDirectories: Array<string>;
   moduleFileExtensions: Array<string>;
-  moduleLoader: Path;
   moduleNameMapper: {
     [key: string]: string | Array<string>;
   };
   modulePathIgnorePatterns: Array<string>;
   modulePaths: Array<string>;
-  name: string;
   noStackTrace: boolean;
   notify: boolean;
   notifyMode: string;
   onlyChanged: boolean;
   onlyFailures: boolean;
-  outputFile: Path;
+  openHandlesTimeout: number;
+  outputFile: string;
   passWithNoTests: boolean;
-  preprocessorIgnorePatterns: Array<Glob>;
   preset: string | null | undefined;
   prettierPath: string | null | undefined;
-  projects: Array<Glob | InitialProjectOptions>;
+  projects: Array<string | InitialProjectOptions>;
+  randomize: boolean;
   replname: string | null | undefined;
   resetMocks: boolean;
   resetModules: boolean;
-  resolver: Path | null | undefined;
+  resolver: string | null | undefined;
   restoreMocks: boolean;
-  rootDir: Path;
-  roots: Array<Path>;
+  rootDir: string;
+  roots: Array<string>;
   runner: string;
   runTestsByPath: boolean;
-  scriptPreprocessor: string;
-  setupFiles: Array<Path>;
-  setupTestFrameworkScriptFile: Path;
-  setupFilesAfterEnv: Array<Path>;
+  runtime: string;
+  sandboxInjectedGlobals: Array<string>;
+  setupFiles: Array<string>;
+  setupFilesAfterEnv: Array<string>;
+  showSeed: boolean;
   silent: boolean;
   skipFilter: boolean;
   skipNodeResolution: boolean;
   slowTestThreshold: number;
-  snapshotResolver: Path;
-  snapshotSerializers: Array<Path>;
+  snapshotResolver: string;
+  snapshotSerializers: Array<string>;
+  snapshotFormat: SnapshotFormat;
   errorOnDeprecated: boolean;
   testEnvironment: string;
   testEnvironmentOptions: Record<string, unknown>;
   testFailureExitCode: string | number;
   testLocationInResults: boolean;
-  testMatch: Array<Glob>;
+  testMatch: Array<string>;
   testNamePattern: string;
-  testPathDirs: Array<Path>;
   testPathIgnorePatterns: Array<string>;
   testRegex: string | Array<string>;
   testResultsProcessor: string;
   testRunner: string;
   testSequencer: string;
-  testURL: string;
   testTimeout: number;
-  timers: Timers;
   transform: {
-    [regex: string]: Path | TransformerConfig;
+    [regex: string]: string | TransformerConfig;
   };
-  transformIgnorePatterns: Array<Glob>;
+  transformIgnorePatterns: Array<string>;
   watchPathIgnorePatterns: Array<string>;
   unmockedModulePathPatterns: Array<string>;
   updateSnapshot: boolean;
@@ -245,6 +329,8 @@ export type InitialOptions = Partial<{
   watchAll: boolean;
   watchman: boolean;
   watchPlugins: Array<string | [string, Record<string, unknown>]>;
+  workerIdleMemoryLimit: number | string;
+  workerThreads: boolean;
 }>;
 
 export type SnapshotUpdateState = 'all' | 'new' | 'none';
@@ -269,15 +355,18 @@ type CoverageThreshold = {
   global: CoverageThresholdValue;
 };
 
+type ShardConfig = {
+  shardIndex: number;
+  shardCount: number;
+};
+
 export type GlobalConfig = {
   bail: number;
   changedSince?: string;
   changedFilesWithAncestor: boolean;
+  ci: boolean;
   collectCoverage: boolean;
-  collectCoverageFrom: Array<Glob>;
-  collectCoverageOnlyFrom?: {
-    [key: string]: boolean;
-  };
+  collectCoverageFrom: Array<string>;
   coverageDirectory: string;
   coveragePathIgnorePatterns?: Array<string>;
   coverageProvider: CoverageProvider;
@@ -286,7 +375,7 @@ export type GlobalConfig = {
   detectLeaks: boolean;
   detectOpenHandles: boolean;
   expand: boolean;
-  filter?: Path;
+  filter?: string;
   findRelatedTests: boolean;
   forceExit: boolean;
   json: boolean;
@@ -302,17 +391,23 @@ export type GlobalConfig = {
   noSCM?: boolean;
   notify: boolean;
   notifyMode: NotifyMode;
-  outputFile?: Path;
+  outputFile?: string;
   onlyChanged: boolean;
   onlyFailures: boolean;
+  openHandlesTimeout: number;
   passWithNoTests: boolean;
-  projects: Array<Glob>;
+  projects: Array<string>;
+  randomize?: boolean;
   replname?: string;
-  reporters?: Array<string | ReporterConfig>;
+  reporters?: Array<ReporterConfig>;
   runTestsByPath: boolean;
-  rootDir: Path;
+  rootDir: string;
+  seed: number;
+  showSeed?: boolean;
+  shard?: ShardConfig;
   silent?: boolean;
   skipFilter: boolean;
+  snapshotFormat: SnapshotFormat;
   errorOnDeprecated: boolean;
   testFailureExitCode: number;
   testNamePattern?: string;
@@ -330,64 +425,72 @@ export type GlobalConfig = {
     path: string;
     config: Record<string, unknown>;
   }> | null;
+  workerIdleMemoryLimit?: number;
+  // TODO: make non-optional in Jest 30
+  workerThreads?: boolean;
 };
 
 export type ProjectConfig = {
   automock: boolean;
   cache: boolean;
-  cacheDirectory: Path;
+  cacheDirectory: string;
   clearMocks: boolean;
+  collectCoverageFrom: Array<string>;
+  coverageDirectory: string;
   coveragePathIgnorePatterns: Array<string>;
-  cwd: Path;
+  cwd: string;
   dependencyExtractor?: string;
   detectLeaks: boolean;
   detectOpenHandles: boolean;
   displayName?: DisplayName;
   errorOnDeprecated: boolean;
-  extensionsToTreatAsEsm: Array<Path>;
-  extraGlobals: Array<keyof NodeJS.Global>;
-  filter?: Path;
-  forceCoverageMatch: Array<Glob>;
+  extensionsToTreatAsEsm: Array<string>;
+  fakeTimers: FakeTimers;
+  filter?: string;
+  forceCoverageMatch: Array<string>;
   globalSetup?: string;
   globalTeardown?: string;
   globals: ConfigGlobals;
   haste: HasteConfig;
+  id: string;
   injectGlobals: boolean;
   moduleDirectories: Array<string>;
   moduleFileExtensions: Array<string>;
-  moduleLoader?: Path;
   moduleNameMapper: Array<[string, string]>;
   modulePathIgnorePatterns: Array<string>;
   modulePaths?: Array<string>;
-  name: string;
+  openHandlesTimeout: number;
+  preset?: string;
   prettierPath: string;
   resetMocks: boolean;
   resetModules: boolean;
-  resolver?: Path;
+  resolver?: string;
   restoreMocks: boolean;
-  rootDir: Path;
-  roots: Array<Path>;
+  rootDir: string;
+  roots: Array<string>;
   runner: string;
-  setupFiles: Array<Path>;
-  setupFilesAfterEnv: Array<Path>;
+  runtime?: string;
+  sandboxInjectedGlobals: Array<keyof typeof globalThis>;
+  setupFiles: Array<string>;
+  setupFilesAfterEnv: Array<string>;
   skipFilter: boolean;
   skipNodeResolution?: boolean;
   slowTestThreshold: number;
-  snapshotResolver?: Path;
-  snapshotSerializers: Array<Path>;
+  snapshotResolver?: string;
+  snapshotSerializers: Array<string>;
+  snapshotFormat: SnapshotFormat;
   testEnvironment: string;
   testEnvironmentOptions: Record<string, unknown>;
-  testMatch: Array<Glob>;
+  testMatch: Array<string>;
   testLocationInResults: boolean;
   testPathIgnorePatterns: Array<string>;
   testRegex: Array<string | RegExp>;
   testRunner: string;
-  testURL: string;
-  timers: Timers;
-  transform: Array<[string, Path, Record<string, unknown>]>;
-  transformIgnorePatterns: Array<Glob>;
+  transform: Array<[string, string, Record<string, unknown>]>;
+  transformIgnorePatterns: Array<string>;
   watchPathIgnorePatterns: Array<string>;
   unmockedModulePathPatterns?: Array<string>;
+  workerIdleMemoryLimit?: number;
 };
 
 export type Argv = Arguments<
@@ -404,7 +507,6 @@ export type Argv = Arguments<
     clearMocks: boolean;
     collectCoverage: boolean;
     collectCoverageFrom: string;
-    collectCoverageOnlyFrom: Array<string>;
     color: boolean;
     colors: boolean;
     config: string;
@@ -422,6 +524,7 @@ export type Argv = Arguments<
     globalSetup: string | null | undefined;
     globalTeardown: string | null | undefined;
     haste: string;
+    ignoreProjects: Array<string>;
     init: boolean;
     injectGlobals: boolean;
     json: boolean;
@@ -440,8 +543,10 @@ export type Argv = Arguments<
     onlyFailures: boolean;
     outputFile: string;
     preset: string | null | undefined;
-    projects: Array<string>;
     prettierPath: string | null | undefined;
+    projects: Array<string>;
+    randomize: boolean;
+    reporters: Array<string>;
     resetMocks: boolean;
     resetModules: boolean;
     resolver: string | null | undefined;
@@ -449,13 +554,17 @@ export type Argv = Arguments<
     rootDir: string;
     roots: Array<string>;
     runInBand: boolean;
+    seed: number;
+    showSeed: boolean;
     selectProjects: Array<string>;
     setupFiles: Array<string>;
     setupFilesAfterEnv: Array<string>;
+    shard: string;
     showConfig: boolean;
     silent: boolean;
     snapshotSerializers: Array<string>;
     testEnvironment: string;
+    testEnvironmentOptions: string;
     testFailureExitCode: string | null | undefined;
     testMatch: Array<string>;
     testNamePattern: string;
@@ -465,9 +574,7 @@ export type Argv = Arguments<
     testResultsProcessor: string;
     testRunner: string;
     testSequencer: string;
-    testURL: string;
     testTimeout: number | null | undefined;
-    timers: string;
     transform: string;
     transformIgnorePatterns: Array<string>;
     unmockedModulePathPatterns: Array<string> | null | undefined;
@@ -479,5 +586,7 @@ export type Argv = Arguments<
     watchAll: boolean;
     watchman: boolean;
     watchPathIgnorePatterns: Array<string>;
+    workerIdleMemoryLimit: number | string;
+    workerThreads: boolean;
   }>
 >;

@@ -1,11 +1,14 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
  * @jest-environment jsdom
  */
+
+/// <reference lib="dom" />
+
 /* eslint-env browser*/
 
 import {plugins} from '../';
@@ -125,10 +128,8 @@ describe('DOMCollection plugin for list items', () => {
     expect(select.options).toPrettyPrintTo(expectedHTMLOptionsCollection);
   });
 
-  // When Jest upgrades to a version of jsdom later than 12.2.0,
-  // the class name might become HTMLFormControlsCollection
   const expectedHTMLFormControlsCollection = [
-    'HTMLCollection [',
+    'HTMLFormControlsCollection [',
     '  <select>',
     '    <option',
     '      value="1"',

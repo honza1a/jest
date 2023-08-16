@@ -1,12 +1,10 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
  */
-
-/* eslint-disable local/ban-types-eventually */
 
 import {EventEmitter} from 'events';
 import * as path from 'path';
@@ -16,7 +14,7 @@ import micromatch = require('micromatch');
 // @ts-expect-error no types
 import walker from 'walker';
 
-// eslint-disable-next-line @typescript-eslint/prefer-ts-expect-error
+// eslint-disable-next-line @typescript-eslint/prefer-ts-expect-error, @typescript-eslint/ban-ts-comment
 // @ts-ignore: this is for CI which runs linux and might not have this
 let fsevents: typeof import('fsevents') | null = null;
 try {
@@ -40,15 +38,15 @@ type FsEventsWatcherEvent =
  * Export `FSEventsWatcher` class.
  * Watches `dir`.
  */
-class FSEventsWatcher extends EventEmitter {
-  public readonly root: string;
-  public readonly ignored?: Matcher;
-  public readonly glob: Array<string>;
-  public readonly dot: boolean;
-  public readonly hasIgnore: boolean;
-  public readonly doIgnore: (path: string) => boolean;
-  public readonly fsEventsWatchStopper: () => Promise<void>;
-  private _tracked: Set<string>;
+export class FSEventsWatcher extends EventEmitter {
+  readonly root: string;
+  readonly ignored?: Matcher;
+  readonly glob: Array<string>;
+  readonly dot: boolean;
+  readonly hasIgnore: boolean;
+  readonly doIgnore: (path: string) => boolean;
+  readonly fsEventsWatchStopper: () => Promise<void>;
+  private readonly _tracked: Set<string>;
 
   static isSupported(): boolean {
     return fsevents !== null;
@@ -65,8 +63,8 @@ class FSEventsWatcher extends EventEmitter {
     dir: string,
     dirCallback: (normalizedPath: string, stats: fs.Stats) => void,
     fileCallback: (normalizedPath: string, stats: fs.Stats) => void,
-    endCallback: Function,
-    errorCallback: Function,
+    endCallback: () => void,
+    errorCallback: () => void,
     ignored?: Matcher,
   ) {
     walker(dir)
@@ -134,7 +132,7 @@ class FSEventsWatcher extends EventEmitter {
     await this.fsEventsWatchStopper();
     this.removeAllListeners();
     if (typeof callback === 'function') {
-      process.nextTick(callback.bind(null, null, true));
+      process.nextTick(() => callback());
     }
   }
 
@@ -187,5 +185,3 @@ class FSEventsWatcher extends EventEmitter {
     this.emit(ALL_EVENT, type, file, this.root, stat);
   }
 }
-
-export = FSEventsWatcher;

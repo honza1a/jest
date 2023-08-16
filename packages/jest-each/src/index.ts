@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -69,7 +69,8 @@ const install = (
 const each = (
   table: Global.EachTable,
   ...data: Global.TemplateData
-): ReturnType<typeof install> => install(global as Global, table, ...data);
+): ReturnType<typeof install> =>
+  install(globalThis as unknown as Global, table, ...data);
 
 each.withGlobal =
   (g: Global) =>

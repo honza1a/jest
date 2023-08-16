@@ -1,11 +1,9 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-
-/* eslint-disable local/ban-types-eventually */
 
 import {printListItems, printObjectProperties} from '../collections';
 import type {Config, NewPlugin, Printer, Refs} from '../types';
@@ -37,14 +35,13 @@ export const serialize: NewPlugin['serialize'] = (
 ) => {
   const name = collection.constructor.name;
   if (++depth > config.maxDepth) {
-    return '[' + name + ']';
+    return `[${name}]`;
   }
 
   return (
     (config.min ? '' : name + SPACE) +
     (OBJECT_NAMES.indexOf(name) !== -1
-      ? '{' +
-        printObjectProperties(
+      ? `{${printObjectProperties(
           isNamedNodeMap(collection)
             ? Array.from(collection).reduce<Record<string, string>>(
                 (props, attribute) => {
@@ -59,18 +56,15 @@ export const serialize: NewPlugin['serialize'] = (
           depth,
           refs,
           printer,
-        ) +
-        '}'
-      : '[' +
-        printListItems(
+        )}}`
+      : `[${printListItems(
           Array.from(collection),
           config,
           indentation,
           depth,
           refs,
           printer,
-        ) +
-        ']')
+        )}]`)
   );
 };
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -15,6 +15,9 @@ module.exports = {
       globalSetup: '<rootDir>/setup.js',
       rootDir: path.resolve(__dirname, './project-1'),
       testMatch: ['<rootDir>/**/*.test.js'],
+      transform: {
+        '\\.[jt]sx?$': [require.resolve('babel-jest'), {root: __dirname}],
+      },
       transformIgnorePatterns: ['/node_modules/', '/packages/'],
     },
     {
@@ -22,6 +25,9 @@ module.exports = {
       globalSetup: '<rootDir>/setup.js',
       rootDir: path.resolve(__dirname, './project-2'),
       testMatch: ['<rootDir>/**/*.test.js'],
+      transform: {
+        '\\.[jt]sx?$': [require.resolve('babel-jest'), {root: __dirname}],
+      },
       transformIgnorePatterns: ['/node_modules/', '/packages/'],
     },
   ],

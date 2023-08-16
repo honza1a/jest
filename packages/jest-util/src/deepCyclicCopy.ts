@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -17,7 +17,7 @@ export default function deepCyclicCopy<T>(
   options: DeepCyclicCopyOptions = {blacklist: EMPTY, keepPrototype: false},
   cycles: WeakMap<any, any> = new WeakMap(),
 ): T {
-  if (typeof value !== 'object' || value === null) {
+  if (typeof value !== 'object' || value === null || Buffer.isBuffer(value)) {
     return value;
   } else if (cycles.has(value)) {
     return cycles.get(value);

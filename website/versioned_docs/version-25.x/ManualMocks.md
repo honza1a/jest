@@ -7,9 +7,19 @@ Manual mocks are used to stub out functionality with mock data. For example, ins
 
 ## Mocking user modules
 
-Manual mocks are defined by writing a module in a `__mocks__/` subdirectory immediately adjacent to the module. For example, to mock a module called `user` in the `models` directory, create a file called `user.js` and put it in the `models/__mocks__` directory. Note that the `__mocks__` folder is case-sensitive, so naming the directory `__MOCKS__` will break on some systems.
+Manual mocks are defined by writing a module in a `__mocks__/` subdirectory immediately adjacent to the module. For example, to mock a module called `user` in the `models` directory, create a file called `user.js` and put it in the `models/__mocks__` directory.
 
-> When we require that module in our tests (meaning we want to use the manual mock instead of the real implementation), explicitly calling `jest.mock('./moduleName')` is **required**.
+:::caution
+
+The `__mocks__` folder is case-sensitive, so naming the directory `__MOCKS__` will break on some systems.
+
+:::
+
+:::note
+
+When we require that module in our tests (meaning we want to use the manual mock instead of the real implementation), explicitly calling `jest.mock('./moduleName')` is **required**.
+
+:::
 
 ## Mocking Node modules
 
@@ -17,7 +27,11 @@ If the module you are mocking is a Node module (e.g.: `lodash`), the mock should
 
 Scoped modules (also known as [scoped packages](https://docs.npmjs.com/cli/v6/using-npm/scope)) can be mocked by creating a file in a directory structure that matches the name of the scoped module. For example, to mock a scoped module called `@scope/project-name`, create a file at `__mocks__/@scope/project-name.js`, creating the `@scope/` directory accordingly.
 
-> Warning: If we want to mock Node's core modules (e.g.: `fs` or `path`), then explicitly calling e.g. `jest.mock('path')` is **required**, because core Node modules are not mocked by default.
+:::caution
+
+If we want to mock Node's build-in modules (e.g.: `fs` or `path`), then explicitly calling e.g. `jest.mock('path')` is **required**, because build-in modules are not mocked by default.
+
+:::
 
 ## Examples
 
@@ -36,12 +50,15 @@ Scoped modules (also known as [scoped packages](https://docs.npmjs.com/cli/v6/us
 
 When a manual mock exists for a given module, Jest's module system will use that module when explicitly calling `jest.mock('moduleName')`. However, when `automock` is set to `true`, the manual mock implementation will be used instead of the automatically created mock, even if `jest.mock('moduleName')` is not called. To opt out of this behavior you will need to explicitly call `jest.unmock('moduleName')` in tests that should use the actual module implementation.
 
-> Note: In order to mock properly, Jest needs `jest.mock('moduleName')` to be in the same scope as the `require/import` statement.
+:::info
+
+In order to mock properly, Jest needs `jest.mock('moduleName')` to be in the same scope as the `require/import` statement.
+
+:::
 
 Here's a contrived example where we have a module that provides a summary of all the files in a given directory. In this case, we use the core (built in) `fs` module.
 
-```javascript
-// FileSummarizer.js
+```javascript title="FileSummarizer.js"
 'use strict';
 
 const fs = require('fs');
@@ -58,8 +75,7 @@ exports.summarizeFilesInDirectorySync = summarizeFilesInDirectorySync;
 
 Since we'd like our tests to avoid actually hitting the disk (that's pretty slow and fragile), we create a manual mock for the `fs` module by extending an automatic mock. Our manual mock will implement custom versions of the `fs` APIs that we can build on for our tests:
 
-```javascript
-// __mocks__/fs.js
+```javascript title="__mocks__/fs.js"
 'use strict';
 
 const path = require('path');
@@ -94,10 +110,9 @@ fs.readdirSync = readdirSync;
 module.exports = fs;
 ```
 
-Now we write our test. Note that we need to explicitly tell that we want to mock the `fs` module because it’s a core Node module:
+Now we write our test. In this case `jest.mock('fs')` must be called explicitly, because `fs` is Node’s build-in module:
 
-```javascript
-// __tests__/FileSummarizer-test.js
+```javascript title="__tests__/FileSummarizer-test.js"
 'use strict';
 
 jest.mock('fs');
@@ -127,11 +142,17 @@ The example mock shown here uses [`jest.genMockFromModule`](JestObjectAPI.md#jes
 
 To ensure that a manual mock and its real implementation stay in sync, it might be useful to require the real module using [`jest.requireActual(moduleName)`](JestObjectAPI.md#jestrequireactualmodulename) in your manual mock and amending it with mock functions before exporting it.
 
-The code for this example is available at [examples/manual-mocks](https://github.com/facebook/jest/tree/master/examples/manual-mocks).
+The code for this example is available at [examples/manual-mocks](https://github.com/jestjs/jest/tree/main/examples/manual-mocks).
 
 ## Using with ES module imports
 
 If you're using [ES module imports](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import) then you'll normally be inclined to put your `import` statements at the top of the test file. But often you need to instruct Jest to use a mock before modules use it. For this reason, Jest will automatically hoist `jest.mock` calls to the top of the module (before any imports). To learn more about this and see it in action, see [this repo](https://github.com/kentcdodds/how-jest-mocking-works).
+
+:::caution
+
+`jest.mock` calls cannot be hoisted to the top of the module if you enabled ECMAScript modules support. The ESM module loader always evaluates the static imports before executing code. See [ECMAScriptModules](ECMAScriptModules.md) for details.
+
+:::
 
 ## Mocking methods which are not implemented in JSDOM
 

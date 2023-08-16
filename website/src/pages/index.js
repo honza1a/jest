@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -11,6 +11,7 @@ import Head from '@docusaurus/Head';
 import Link from '@docusaurus/Link';
 import backers from '@site/backers.json';
 import Translate from '@docusaurus/Translate';
+import LiteYouTubeEmbed from 'react-lite-youtube-embed';
 
 import {setupLandingAnimation} from '@site/src/pages/animations/_landingAnimation';
 
@@ -28,12 +29,12 @@ import GitHubButton from 'react-github-btn';
 function TwitterButton() {
   return (
     <a
-      href="https://twitter.com/intent/follow?screen_name=fbjest&region=follow_link"
+      href="https://twitter.com/intent/follow?screen_name=jestjs_&region=follow_link"
       target="_blank"
       className={styles['twitter-follow-button']}
     >
       <div className={styles['twitter-follow-button--icon']} />
-      Follow @fbjest
+      Follow @jestjs_
     </a>
   );
 }
@@ -42,7 +43,7 @@ function GitHubStarButton() {
   return (
     <div className="github-button">
       <GitHubButton
-        href="https://github.com/facebook/jest"
+        href="https://github.com/jestjs/jest"
         data-icon="octicon-star"
         data-size="large"
         aria-label="Star facebook/jest on GitHub"
@@ -250,12 +251,7 @@ class Card extends React.Component {
 class Hand extends React.Component {
   render() {
     const cards = [0, 1, 2, 3, 4].map(i => <Card key={i} index={i} />);
-    return (
-      <div className="jest-hand">
-        {cards}
-        <script src="/landing.js" />
-      </div>
-    );
+    return <div className="jest-hand">{cards}</div>;
   }
 }
 
@@ -510,16 +506,9 @@ class Index extends React.Component {
             className="section-container bottom-margin docs"
           >
             <div className="blockElement imageAlignSide gridBlock video-block">
-              <div className="blockContent ">
+              <div className="blockContent">
                 <div className="video">
-                  <iframe
-                    width="560"
-                    height="315"
-                    src="https://www.youtube.com/embed/cAKYQpTC7MA"
-                    frameBorder="0"
-                    allow="autoplay; encrypted-media"
-                    allowFullScreen
-                  />
+                  <LiteYouTubeEmbed id="cAKYQpTC7MA" />
                 </div>
               </div>
             </div>
@@ -569,9 +558,9 @@ class Index extends React.Component {
                 <MarkdownBlock>
                   <Translate>
                     A lot of people! With
-                    [20m](https://www.npmjs.com/package/jest) downloads in the
+                    [93m](https://www.npmjs.com/package/jest) downloads in the
                     last month, and used on over
-                    [1,293,000](https://github.com/facebook/jest/network/dependents)
+                    [8,756,000](https://github.com/jestjs/jest/network/dependents)
                     public repos on GitHub. Jest is used extensively at these
                     companies:
                   </Translate>

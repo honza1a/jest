@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -26,7 +26,7 @@ const REQUIRE_OUTSIDE_FUNCTION_NAME = 'requireOutside';
 module.exports = ({template, types: t}) => {
   const replacement = template(`
     require(require.resolve(IMPORT_PATH, {
-      [(global['jest-symbol-do-not-touch'] || global.Symbol).for('jest-resolve-outside-vm-option')]: true,
+      [(globalThis['jest-symbol-do-not-touch'] || globalThis.Symbol).for('jest-resolve-outside-vm-option')]: true,
     }));
   `);
   return {

@@ -1,11 +1,10 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
-import type {Config} from '@jest/types';
 import type {AggregatedResult, SerializableError, TestResult} from './types';
 
 export const makeEmptyAggregatedTestResult = (): AggregatedResult => ({
@@ -44,7 +43,7 @@ export const makeEmptyAggregatedTestResult = (): AggregatedResult => ({
 });
 
 export const buildFailureTestResult = (
-  testPath: Config.Path,
+  testPath: string,
   err: SerializableError,
 ): TestResult => ({
   console: undefined,
@@ -129,7 +128,7 @@ export const addResult = (
   aggregatedResults.snapshot.matched += testResult.snapshot.matched;
   aggregatedResults.snapshot.unchecked += testResult.snapshot.unchecked;
   if (
-    testResult.snapshot.uncheckedKeys &&
+    testResult.snapshot.uncheckedKeys != null &&
     testResult.snapshot.uncheckedKeys.length > 0
   ) {
     aggregatedResults.snapshot.uncheckedKeysByFile.push({

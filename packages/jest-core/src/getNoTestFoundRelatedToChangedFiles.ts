@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -19,10 +19,11 @@ export default function getNoTestFoundRelatedToChangedFiles(
 
   if (isInteractive) {
     msg += chalk.dim(
-      '\n' +
-        (globalConfig.watch
+      `\n${
+        globalConfig.watch
           ? 'Press `a` to run all tests, or run Jest with `--watchAll`.'
-          : 'Run Jest without `-o` or with `--all` to run all tests.'),
+          : 'Run Jest without `-o` or with `--all` to run all tests.'
+      }`,
     );
   }
 

@@ -7,9 +7,9 @@ Mock functions are also known as "spies", because they let you spy on the behavi
 
 ## Methods
 
-import TOCInline from "@theme/TOCInline"
+import TOCInline from '@theme/TOCInline';
 
-<TOCInline toc={toc.slice(1)}/>
+<TOCInline toc={toc.slice(1)} />
 
 ---
 
@@ -17,7 +17,7 @@ import TOCInline from "@theme/TOCInline"
 
 ### `mockFn.getMockName()`
 
-Returns the mock name string set by calling `mockFn.mockName(value)`.
+Returns the mock name string set by calling [`.mockName()`](#mockfnmocknamename).
 
 ### `mockFn.mock.calls`
 
@@ -81,21 +81,29 @@ mockFn.mock.instances[1] === b; // true
 
 ### `mockFn.mockClear()`
 
-Resets all information stored in the [`mockFn.mock.calls`](#mockfnmockcalls) and [`mockFn.mock.instances`](#mockfnmockinstances) arrays.
+Clears all information stored in the [`mockFn.mock.calls`](#mockfnmockcalls), [`mockFn.mock.instances`](#mockfnmockinstances) and [`mockFn.mock.results`](#mockfnmockresults) arrays. Often this is useful when you want to clean up a mocks usage data between two assertions.
 
-Often this is useful when you want to clean up a mock's usage data between two assertions.
+The [`clearMocks`](configuration#clearmocks-boolean) configuration option is available to clear mocks automatically before each tests.
 
-Beware that `mockClear` will replace `mockFn.mock`, not just [`mockFn.mock.calls`](#mockfnmockcalls) and [`mockFn.mock.instances`](#mockfnmockinstances). You should, therefore, avoid assigning `mockFn.mock` to other variables, temporary or not, to make sure you don't access stale data.
+:::warning
 
-The [`clearMocks`](configuration#clearmocks-boolean) configuration option is available to clear mocks automatically between tests.
+Beware that `mockClear` will replace `mockFn.mock`, not just these three properties! You should, therefore, avoid assigning `mockFn.mock` to other variables, temporary or not, to make sure you don't access stale data.
+
+:::
 
 ### `mockFn.mockReset()`
 
 Does everything that [`mockFn.mockClear()`](#mockfnmockclear) does, and also removes any mocked return values or implementations.
 
-This is useful when you want to completely reset a _mock_ back to its initial state. (Note that resetting a _spy_ will result in a function with no return value).
+This is useful when you want to completely reset a _mock_ back to its initial state.
 
-Beware that `mockReset` will replace `mockFn.mock`, not just [`mockFn.mock.calls`](#mockfnmockcalls) and [`mockFn.mock.instances`](#mockfnmockinstances). You should, therefore, avoid assigning `mockFn.mock` to other variables, temporary or not, to make sure you don't access stale data.
+The [`resetMocks`](configuration#resetmocks-boolean) configuration option is available to reset mocks automatically before each test.
+
+:::info
+
+Resetting a mock created with `jest.spyOn()` will result in a function with no return value.
+
+:::
 
 ### `mockFn.mockRestore()`
 
@@ -103,15 +111,23 @@ Does everything that [`mockFn.mockReset()`](#mockfnmockreset) does, and also res
 
 This is useful when you want to mock functions in certain test cases and restore the original implementation in others.
 
-Beware that `mockFn.mockRestore` only works when the mock was created with `jest.spyOn`. Thus you have to take care of restoration yourself when manually assigning `jest.fn()`.
+The [`restoreMocks`](configuration#restoremocks-boolean) configuration option is available to restore mocks automatically before each test.
 
-The [`restoreMocks`](configuration#restoremocks-boolean) configuration option is available to restore mocks automatically between tests.
+:::info
+
+`mockFn.mockRestore` only works when the mock was created with `jest.spyOn`. Thus you have to take care of restoration yourself when manually assigning `jest.fn()`.
+
+:::
 
 ### `mockFn.mockImplementation(fn)`
 
 Accepts a function that should be used as the implementation of the mock. The mock itself will still record all calls that go into and instances that come from itself – the only difference is that the implementation will also be executed when the mock is called.
 
-_Note: `jest.fn(implementation)` is a shorthand for `jest.fn().mockImplementation(implementation)`._
+:::tip
+
+`jest.fn(implementation)` is a shorthand for `jest.fn().mockImplementation(implementation)`.
+
+:::
 
 For example:
 
@@ -131,13 +147,13 @@ mockFn.mock.calls[1][0] === 1; // true
 
 `mockImplementation` can also be used to mock class constructors:
 
-```js
-// SomeClass.js
+```js title="SomeClass.js"
 module.exports = class SomeClass {
   m(a, b) {}
 };
+```
 
-// OtherModule.test.js
+```js title="OtherModule.test.js"
 jest.mock('./SomeClass'); // this happens automatically with automocking
 const SomeClass = require('./SomeClass');
 const mMock = jest.fn();
@@ -179,9 +195,9 @@ const myMockFn = jest
 console.log(myMockFn(), myMockFn(), myMockFn(), myMockFn());
 ```
 
-### `mockFn.mockName(value)`
+### `mockFn.mockName(name)`
 
-Accepts a string to use in test result output in place of "jest.fn()" to indicate which mock function is being referenced.
+Accepts a string to use in test result output in place of `'jest.fn()'` to indicate which mock function is being referenced.
 
 For example:
 
@@ -193,15 +209,16 @@ expect(mockFn).toHaveBeenCalled();
 
 Will result in this error:
 
-```
+```bash
 expect(mockedFunction).toHaveBeenCalled()
 
-Expected mock function "mockedFunction" to have been called, but it was not called.
+Expected number of calls: >= 1
+Received number of calls:    0
 ```
 
 ### `mockFn.mockReturnThis()`
 
-Syntactic sugar function for:
+Shorthand for:
 
 ```js
 jest.fn(function () {
@@ -210,6 +227,12 @@ jest.fn(function () {
 ```
 
 ### `mockFn.mockReturnValue(value)`
+
+Shorthand for:
+
+```js
+jest.fn().mockImplementation(() => value);
+```
 
 Accepts a value that will be returned whenever the mock function is called.
 
@@ -222,6 +245,12 @@ mock(); // 43
 ```
 
 ### `mockFn.mockReturnValueOnce(value)`
+
+Shorthand for:
+
+```js
+jest.fn().mockImplementationOnce(() => value);
+```
 
 Accepts a value that will be returned for one call to the mock function. Can be chained so that successive calls to the mock function return different values. When there are no more `mockReturnValueOnce` values to use, calls will return a value specified by `mockReturnValue`.
 
@@ -238,7 +267,7 @@ console.log(myMockFn(), myMockFn(), myMockFn(), myMockFn());
 
 ### `mockFn.mockResolvedValue(value)`
 
-Syntactic sugar function for:
+Shorthand for:
 
 ```js
 jest.fn().mockImplementation(() => Promise.resolve(value));
@@ -256,7 +285,7 @@ test('async test', async () => {
 
 ### `mockFn.mockResolvedValueOnce(value)`
 
-Syntactic sugar function for:
+Shorthand for:
 
 ```js
 jest.fn().mockImplementationOnce(() => Promise.resolve(value));
@@ -281,7 +310,7 @@ test('async test', async () => {
 
 ### `mockFn.mockRejectedValue(value)`
 
-Syntactic sugar function for:
+Shorthand for:
 
 ```js
 jest.fn().mockImplementation(() => Promise.reject(value));
@@ -299,7 +328,7 @@ test('async test', async () => {
 
 ### `mockFn.mockRejectedValueOnce(value)`
 
-Syntactic sugar function for:
+Shorthand for:
 
 ```js
 jest.fn().mockImplementationOnce(() => Promise.reject(value));
@@ -327,11 +356,15 @@ If you are using [Create React App](https://create-react-app.dev) then the [Type
 
 Otherwise, please see our [Getting Started](GettingStarted.md#using-typescript) guide for to get setup with TypeScript.
 
-You can see an example of using Jest with TypeScript in our [GitHub repository](https://github.com/facebook/jest/tree/master/examples/typescript).
+You can see an example of using Jest with TypeScript in our [GitHub repository](https://github.com/jestjs/jest/tree/main/examples/typescript).
 
 ### `jest.MockedFunction`
 
-> `jest.MockedFunction` is available in the `@types/jest` module from version `24.9.0`.
+:::tip
+
+`jest.MockedFunction` is available in the `@types/jest` module from version `24.9.0`.
+
+:::
 
 The following examples will assume you have an understanding of how [Jest mock functions work with JavaScript](MockFunctions.md).
 
@@ -352,8 +385,8 @@ const mockAdd = add as jest.MockedFunction<typeof add>;
 test('calculate calls add', () => {
   calculate('Add', 1, 2);
 
-  expect(mockAdd).toBeCalledTimes(1);
-  expect(mockAdd).toBeCalledWith(1, 2);
+  expect(mockAdd).toHaveBeenCalledTimes(1);
+  expect(mockAdd).toHaveBeenCalledWith(1, 2);
 });
 ```
 
@@ -388,14 +421,18 @@ test('calculate calls add', () => {
   // anything requiring `add`.
   calculate(mockAdd, 1, 2);
 
-  expect(mockAdd).toBeCalledTimes(1);
-  expect(mockAdd).toBeCalledWith(1, 2);
+  expect(mockAdd).toHaveBeenCalledTimes(1);
+  expect(mockAdd).toHaveBeenCalledWith(1, 2);
 });
 ```
 
 ### `jest.MockedClass`
 
-> `jest.MockedClass` is available in the `@types/jest` module from version `24.9.0`.
+:::tip
+
+`jest.MockedClass` is available in the `@types/jest` module from version `24.9.0`.
+
+:::
 
 The following examples will assume you have an understanding of how [Jest mock classes work with JavaScript](Es6ClassMocks.md).
 
@@ -438,7 +475,7 @@ it('We can check if the consumer called a method on the class instance', () => {
   // However, it will not allow access to `.mock` in TypeScript as it
   // is returning `SoundPlayer`. Instead, you can check the calls to a
   // method like this fully typed:
-  expect(SoundPlayerMock.prototype.playSoundFile.mock.calls[0][0]).toEqual(
+  expect(SoundPlayerMock.prototype.playSoundFile.mock.calls[0][0]).toBe(
     coolSoundFileName,
   );
   // Equivalent to above check:

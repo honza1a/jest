@@ -1,11 +1,12 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
 import chalk = require('chalk');
+import type {CompareKeys} from 'pretty-format';
 import type {DiffOptions, DiffOptionsNormalized} from './types';
 
 export const noColor = (string: string): string => string;
@@ -24,6 +25,7 @@ const OPTIONS_DEFAULT: DiffOptionsNormalized = {
   commonColor: chalk.dim,
   commonIndicator: ' ',
   commonLineTrailingSpaceColor: noColor,
+  compareKeys: undefined,
   contextLines: DIFF_CONTEXT_DEFAULT,
   emptyFirstOrLastLinePlaceholder: '',
   expand: true,
@@ -31,6 +33,11 @@ const OPTIONS_DEFAULT: DiffOptionsNormalized = {
   omitAnnotationLines: false,
   patchColor: chalk.yellow,
 };
+
+const getCompareKeys = (compareKeys?: CompareKeys): CompareKeys =>
+  compareKeys && typeof compareKeys === 'function'
+    ? compareKeys
+    : OPTIONS_DEFAULT.compareKeys;
 
 const getContextLines = (contextLines?: number): number =>
   typeof contextLines === 'number' &&
@@ -45,5 +52,6 @@ export const normalizeDiffOptions = (
 ): DiffOptionsNormalized => ({
   ...OPTIONS_DEFAULT,
   ...options,
+  compareKeys: getCompareKeys(options.compareKeys),
   contextLines: getContextLines(options.contextLines),
 });

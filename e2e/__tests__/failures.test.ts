@@ -1,12 +1,11 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
 import * as path from 'path';
-import {wrap} from 'jest-snapshot-serializer-raw';
 import {extractSummary, runYarnInstall} from '../Utils';
 import runJest from '../runJest';
 
@@ -21,8 +20,6 @@ function cleanStderr(stderr: string) {
     .replace(new RegExp('Failed: Object {', 'g'), 'thrown: Object {');
 }
 
-const nodeMajorVersion = Number(process.versions.node.split('.')[0]);
-
 beforeAll(() => {
   runYarnInstall(dir);
 });
@@ -30,42 +27,30 @@ beforeAll(() => {
 test('not throwing Error objects', () => {
   let stderr;
   stderr = runJest(dir, ['throwNumber.test.js']).stderr;
-  expect(wrap(cleanStderr(stderr))).toMatchSnapshot();
+  expect(cleanStderr(stderr)).toMatchSnapshot();
   stderr = runJest(dir, ['throwString.test.js']).stderr;
-  expect(wrap(cleanStderr(stderr))).toMatchSnapshot();
+  expect(cleanStderr(stderr)).toMatchSnapshot();
   stderr = runJest(dir, ['throwObject.test.js']).stderr;
-  expect(wrap(cleanStderr(stderr))).toMatchSnapshot();
+  expect(cleanStderr(stderr)).toMatchSnapshot();
   stderr = runJest(dir, ['assertionCount.test.js']).stderr;
-  expect(wrap(cleanStderr(stderr))).toMatchSnapshot();
+  expect(cleanStderr(stderr)).toMatchSnapshot();
   stderr = runJest(dir, ['duringTests.test.js']).stderr;
-
-  if (nodeMajorVersion < 12) {
-    const lineEntry = '(__tests__/duringTests.test.js:43:8)';
-
-    expect(stderr).toContain(`at Object.<anonymous>.done ${lineEntry}`);
-
-    stderr = stderr.replace(
-      `at Object.<anonymous>.done ${lineEntry}`,
-      `at Object.<anonymous> ${lineEntry}`,
-    );
-  }
-
-  expect(wrap(cleanStderr(stderr))).toMatchSnapshot();
+  expect(cleanStderr(stderr)).toMatchSnapshot();
   stderr = runJest(dir, ['throwObjectWithStackProp.test.js']).stderr;
-  expect(wrap(cleanStderr(stderr))).toMatchSnapshot();
+  expect(cleanStderr(stderr)).toMatchSnapshot();
 });
 
 test('works with node assert', () => {
   const {stderr} = runJest(dir, ['assertionError.test.js']);
   const summary = normalizeDots(cleanStderr(stderr));
 
-  expect(wrap(summary)).toMatchSnapshot();
+  expect(summary).toMatchSnapshot();
 });
 
 test('works with assertions in separate files', () => {
   const {stderr} = runJest(dir, ['testMacro.test.js']);
 
-  expect(wrap(normalizeDots(cleanStderr(stderr)))).toMatchSnapshot();
+  expect(normalizeDots(cleanStderr(stderr))).toMatchSnapshot();
 });
 
 test('works with async failures', () => {
@@ -79,10 +64,13 @@ test('works with async failures', () => {
   // Remove replacements when jasmine is gone
   const result = normalizeDots(rest)
     .replace(/.*thrown:.*\n/, '')
-    .replace(/.*Use jest\.setTimeout\(newTimeout\).*/, '<REPLACED>')
+    .replace(
+      /.*Add a timeout value to this test to increase the timeout, if this is a long-running test. See https:\/\/jestjs.io\/docs\/api#testname-fn-timeout..*/,
+      '<REPLACED>',
+    )
     .replace(/.*Timeout - Async callback was not.*/, '<REPLACED>');
 
-  expect(wrap(result)).toMatchSnapshot();
+  expect(result).toMatchSnapshot();
 });
 
 test('works with snapshot failures', () => {
@@ -91,7 +79,7 @@ test('works with snapshot failures', () => {
   const result = normalizeDots(cleanStderr(stderr));
 
   expect(
-    wrap(result.substring(0, result.indexOf('Snapshot Summary'))),
+    result.substring(0, result.indexOf('Snapshot Summary')),
   ).toMatchSnapshot();
 });
 
@@ -101,7 +89,31 @@ test('works with snapshot failures with hint', () => {
   const result = normalizeDots(cleanStderr(stderr));
 
   expect(
-    wrap(result.substring(0, result.indexOf('Snapshot Summary'))),
+    result.substring(0, result.indexOf('Snapshot Summary')),
+  ).toMatchSnapshot();
+});
+
+test('works with error with cause', () => {
+  const {stderr} = runJest(dir, ['errorWithCause.test.js']);
+  const summary = normalizeDots(cleanStderr(stderr));
+
+  expect(summary).toMatchSnapshot();
+});
+
+test('works with error with cause thrown outside tests', () => {
+  const {stderr} = runJest(dir, ['errorWithCauseInDescribe.test.js']);
+  const summary = normalizeDots(cleanStderr(stderr));
+
+  const sanitizedSummary = summary
+    .replace(/ Suite\.f /g, ' f ') // added by jasmine runner
+    .split('\n')
+    .map(line => line.trim()) // jasmine runner does not come with the same indentation
+    .join('\n');
+
+  expect(
+    // jasmine runner differ from circus one in this case, we just start
+    // the comparison when the stack starts to be reported
+    sanitizedSummary.substring(sanitizedSummary.indexOf('error during f')),
   ).toMatchSnapshot();
 });
 
@@ -109,7 +121,7 @@ test('errors after test has completed', () => {
   const {stderr} = runJest(dir, ['errorAfterTestComplete.test.js']);
 
   expect(stderr).toMatch(
-    /Error: Caught error after test environment was torn down/,
+    /Error(WithStack)?: Caught error after test environment was torn down/,
   );
   expect(stderr).toMatch(/Failed: "fail async"/);
 });

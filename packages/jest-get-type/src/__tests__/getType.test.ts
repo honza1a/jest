@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -22,8 +22,5 @@ describe('.getType()', () => {
   test('map', () => expect(getType(new Map())).toBe('map'));
   test('set', () => expect(getType(new Set())).toBe('set'));
   test('date', () => expect(getType(new Date())).toBe('date'));
-  /* global BigInt */
-  if (typeof BigInt === 'function') {
-    test('bigint', () => expect(getType(BigInt(1))).toBe('bigint'));
-  }
+  test('bigint', () => expect(getType(BigInt(1))).toBe('bigint'));
 });

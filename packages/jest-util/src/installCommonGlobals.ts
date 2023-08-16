@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -10,12 +10,12 @@ import type {Config} from '@jest/types';
 import createProcessObject from './createProcessObject';
 import deepCyclicCopy from './deepCyclicCopy';
 
-const DTRACE = Object.keys(global).filter(key => key.startsWith('DTRACE'));
+const DTRACE = Object.keys(globalThis).filter(key => key.startsWith('DTRACE'));
 
-export default function (
-  globalObject: NodeJS.Global,
+export default function installCommonGlobals(
+  globalObject: typeof globalThis,
   globals: Config.ConfigGlobals,
-): NodeJS.Global & Config.ConfigGlobals {
+): typeof globalThis & Config.ConfigGlobals {
   globalObject.process = createProcessObject();
 
   const symbol = globalObject.Symbol as unknown as SymbolConstructor;
@@ -58,7 +58,7 @@ export default function (
     // @ts-expect-error: no index
     globalObject[dtrace] = function (...args: Array<any>) {
       // @ts-expect-error: no index
-      return global[dtrace].apply(this, args);
+      return globalThis[dtrace].apply(this, args);
     };
   });
 

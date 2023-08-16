@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -18,14 +18,14 @@ const hasteImplModulePath = path
 
 beforeEach(() => {
   cleanup(tempDir);
-  createEmptyPackage(tempDir);
+  createEmptyPackage(tempDir, {});
 });
 
 // This test case is checking that when having both
 // `invariant` package from npm and `invariant.js` that provides `invariant`
 // module we can still require the right invariant. This is pretty specific
 // use case and in the future we should probably delete this test.
-// see: https://github.com/facebook/jest/pull/6687
+// see: https://github.com/jestjs/jest/pull/6687
 test('does not require project modules from inside node_modules', () => {
   writeFiles(tempDir, {
     '__tests__/test.js': `
@@ -64,10 +64,12 @@ test('does not require project modules from inside node_modules', () => {
           if (!threw) {
             throw new Error('It used the wrong invariant module!');
           }
-          return script.replace(
-            'INVALID CODE FRAGMENT THAT WILL BE REMOVED BY THE TRANSFORMER',
-            ''
-          );
+          return {
+            code: script.replace(
+              'INVALID CODE FRAGMENT THAT WILL BE REMOVED BY THE TRANSFORMER',
+              '',
+            ),
+          };
         },
       };
     `,

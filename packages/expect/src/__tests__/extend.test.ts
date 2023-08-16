@@ -1,25 +1,30 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
  */
 
+import {equals, iterableEquality, subsetEquality} from '@jest/expect-utils';
 import {alignedAnsiStyleSerializer} from '@jest/test-utils';
 import * as matcherUtils from 'jest-matcher-utils';
 import jestExpect from '../';
-import {equals} from '../jasmineUtils';
-import {iterableEquality, subsetEquality} from '../utils';
 
 expect.addSnapshotSerializer(alignedAnsiStyleSerializer);
 
 jestExpect.extend({
   toBeDivisibleBy(actual: number, expected: number) {
     const pass = actual % expected === 0;
-    const message = pass
-      ? () => `expected ${actual} not to be divisible by ${expected}`
-      : () => `expected ${actual} to be divisible by ${expected}`;
+    const message: () => string = pass
+      ? () =>
+          `expected ${this.utils.printReceived(
+            actual,
+          )} not to be divisible by ${expected}`
+      : () =>
+          `expected ${this.utils.printReceived(
+            actual,
+          )} to be divisible by ${expected}`;
 
     return {message, pass};
   },
@@ -33,36 +38,60 @@ jestExpect.extend({
   toBeWithinRange(actual: number, floor: number, ceiling: number) {
     const pass = actual >= floor && actual <= ceiling;
     const message = pass
-      ? () => `expected ${actual} not to be within range ${floor} - ${ceiling}`
-      : () => `expected ${actual} to be within range ${floor} - ${ceiling}`;
+      ? () =>
+          `expected ${this.utils.printReceived(
+            actual,
+          )} not to be within range ${floor} - ${ceiling}`
+      : () =>
+          `expected ${this.utils.printReceived(
+            actual,
+          )} to be within range ${floor} - ${ceiling}`;
 
     return {message, pass};
   },
 });
+
+declare module '../types' {
+  interface AsymmetricMatchers {
+    toBeDivisibleBy(expected: number): void;
+    toBeSymbol(expected: symbol): void;
+    toBeWithinRange(floor: number, ceiling: number): void;
+  }
+  interface Matchers<R> {
+    toBeDivisibleBy(expected: number): R;
+    toBeSymbol(expected: symbol): R;
+    toBeWithinRange(floor: number, ceiling: number): R;
+
+    shouldNotError(): R;
+    toFailWithoutMessage(): R;
+    toBeOne(): R;
+    toAllowOverridingExistingMatcher(): R;
+  }
+}
 
 it('is available globally when matcher is unary', () => {
   jestExpect(15).toBeDivisibleBy(5);
   jestExpect(15).toBeDivisibleBy(3);
   jestExpect(15).not.toBeDivisibleBy(6);
 
-  jestExpect(() =>
+  expect(() =>
     jestExpect(15).toBeDivisibleBy(2),
   ).toThrowErrorMatchingSnapshot();
 });
 
 it('is available globally when matcher is variadic', () => {
   jestExpect(15).toBeWithinRange(10, 20);
-  jestExpect(15).not.toBeWithinRange(6);
+  jestExpect(15).not.toBeWithinRange(6, 10);
 
-  jestExpect(() =>
+  expect(() =>
     jestExpect(15).toBeWithinRange(1, 3),
   ).toThrowErrorMatchingSnapshot();
 });
 
 it('exposes matcherUtils in context', () => {
   jestExpect.extend({
-    _shouldNotError(_actual: unknown, _expected: unknown) {
-      const pass = this.equals(
+    shouldNotError(_actual: unknown) {
+      const pass: boolean = this.equals(
         this.utils,
         Object.assign(matcherUtils, {
           iterableEquality,
@@ -70,20 +99,20 @@ it('exposes matcherUtils in context', () => {
         }),
       );
       const message = pass
-        ? () => `expected this.utils to be defined in an extend call`
-        : () => `expected this.utils not to be defined in an extend call`;
+        ? () => 'expected this.utils to be defined in an extend call'
+        : () => 'expected this.utils not to be defined in an extend call';
 
       return {message, pass};
     },
   });
 
-  jestExpect()._shouldNotError();
+  jestExpect('test').shouldNotError();
 });
 
 it('is ok if there is no message specified', () => {
   jestExpect.extend({
     toFailWithoutMessage(_expected: unknown) {
-      return {pass: false};
+      return {message: () => '', pass: false};
     },
   });
 
@@ -96,13 +125,13 @@ it('exposes an equality function to custom matchers', () => {
   // jestExpect and expect share the same global state
   expect.assertions(3);
   jestExpect.extend({
-    toBeOne() {
+    toBeOne(_expected: unknown) {
       expect(this.equals).toBe(equals);
-      return {pass: !!this.equals(1, 1)};
+      return {message: () => '', pass: !!this.equals(1, 1)};
     },
   });
 
-  expect(() => jestExpect().toBeOne()).not.toThrow();
+  expect(() => jestExpect('test').toBeOne()).not.toThrow();
 });
 
 it('defines asymmetric unary matchers', () => {
@@ -154,4 +183,49 @@ it('prints the Symbol into the error message', () => {
       a: jestExpect.toBeSymbol(bar),
     }),
   ).toThrowErrorMatchingSnapshot();
+});
+
+it('allows overriding existing extension', () => {
+  jestExpect.extend({
+    toAllowOverridingExistingMatcher(_expected: unknown) {
+      return {message: () => '', pass: _expected === 'bar'};
+    },
+  });
+
+  jestExpect('foo').not.toAllowOverridingExistingMatcher();
+
+  jestExpect.extend({
+    toAllowOverridingExistingMatcher(_expected: unknown) {
+      return {message: () => '', pass: _expected === 'foo'};
+    },
+  });
+
+  jestExpect('foo').toAllowOverridingExistingMatcher();
+});
+
+it('throws descriptive errors for invalid matchers', () => {
+  expect(() =>
+    jestExpect.extend({
+      // @ts-expect-error: Testing runtime error
+      default: undefined,
+    }),
+  ).toThrow(
+    'expect.extend: `default` is not a valid matcher. Must be a function, is "undefined"',
+  );
+  expect(() =>
+    jestExpect.extend({
+      // @ts-expect-error: Testing runtime error
+      default: 42,
+    }),
+  ).toThrow(
+    'expect.extend: `default` is not a valid matcher. Must be a function, is "number"',
+  );
+  expect(() =>
+    jestExpect.extend({
+      // @ts-expect-error: Testing runtime error
+      default: 'foobar',
+    }),
+  ).toThrow(
+    'expect.extend: `default` is not a valid matcher. Must be a function, is "string"',
+  );
 });

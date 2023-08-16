@@ -1,11 +1,15 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
+import {AsyncLocalStorage} from 'async_hooks';
+import pLimit = require('p-limit');
+import {jestExpect} from '@jest/expect';
 import type {Circus} from '@jest/types';
+import shuffleArray, {RandomNumberGenerator, rngBuilder} from './shuffleArray';
 import {dispatch, getState} from './state';
 import {RETRY_TIMES} from './types';
 import {
@@ -17,10 +21,15 @@ import {
   makeRunResult,
 } from './utils';
 
+type ConcurrentTestEntry = Omit<Circus.TestEntry, 'fn'> & {
+  fn: Circus.ConcurrentTestFn;
+};
+
 const run = async (): Promise<Circus.RunResult> => {
-  const {rootDescribeBlock} = getState();
+  const {rootDescribeBlock, seed, randomize} = getState();
+  const rng = randomize ? rngBuilder(seed) : undefined;
   await dispatch({name: 'run_start'});
-  await _runTestsForDescribeBlock(rootDescribeBlock);
+  await _runTestsForDescribeBlock(rootDescribeBlock, rng, true);
   await dispatch({name: 'run_finish'});
   return makeRunResult(
     getState().rootDescribeBlock,
@@ -30,6 +39,8 @@ const run = async (): Promise<Circus.RunResult> => {
 
 const _runTestsForDescribeBlock = async (
   describeBlock: Circus.DescribeBlock,
+  rng: RandomNumberGenerator | undefined,
+  isRootBlock = false,
 ) => {
   await dispatch({describeBlock, name: 'run_describe_start'});
   const {beforeAll, afterAll} = getAllHooksForDescribe(describeBlock);
@@ -42,14 +53,25 @@ const _runTestsForDescribeBlock = async (
     }
   }
 
+  if (isRootBlock) {
+    const concurrentTests = collectConcurrentTests(describeBlock);
+    if (concurrentTests.length > 0) {
+      startTestsConcurrently(concurrentTests);
+    }
+  }
+
   // Tests that fail and are retried we run after other tests
+  // eslint-disable-next-line no-restricted-globals
   const retryTimes = parseInt(global[RETRY_TIMES], 10) || 0;
   const deferredRetryTests = [];
 
+  if (rng) {
+    describeBlock.children = shuffleArray(describeBlock.children, rng);
+  }
   for (const child of describeBlock.children) {
     switch (child.type) {
       case 'describeBlock': {
-        await _runTestsForDescribeBlock(child);
+        await _runTestsForDescribeBlock(child, rng);
         break;
       }
       case 'test': {
@@ -90,6 +112,51 @@ const _runTestsForDescribeBlock = async (
   await dispatch({describeBlock, name: 'run_describe_finish'});
 };
 
+function collectConcurrentTests(
+  describeBlock: Circus.DescribeBlock,
+): Array<ConcurrentTestEntry> {
+  if (describeBlock.mode === 'skip') {
+    return [];
+  }
+  const {hasFocusedTests, testNamePattern} = getState();
+  return describeBlock.children.flatMap(child => {
+    switch (child.type) {
+      case 'describeBlock':
+        return collectConcurrentTests(child);
+      case 'test':
+        const skip =
+          !child.concurrent ||
+          child.mode === 'skip' ||
+          (hasFocusedTests && child.mode !== 'only') ||
+          (testNamePattern && !testNamePattern.test(getTestID(child)));
+        return skip ? [] : [child as ConcurrentTestEntry];
+    }
+  });
+}
+
+function startTestsConcurrently(concurrentTests: Array<ConcurrentTestEntry>) {
+  const mutex = pLimit(getState().maxConcurrency);
+  const testNameStorage = new AsyncLocalStorage<string>();
+  jestExpect.setState({
+    currentConcurrentTestName: () => testNameStorage.getStore(),
+  });
+  for (const test of concurrentTests) {
+    try {
+      const testFn = test.fn;
+      const promise = mutex(() => testNameStorage.run(getTestID(test), testFn));
+      // Avoid triggering the uncaught promise rejection handler in case the
+      // test fails before being awaited on.
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      promise.catch(() => {});
+      test.fn = () => promise;
+    } catch (err) {
+      test.fn = () => {
+        throw err;
+      };
+    }
+  }
+}
+
 const _runTest = async (
   test: Circus.TestEntry,
   parentSkipped: boolean,
@@ -101,7 +168,7 @@ const _runTest = async (
   const isSkipped =
     parentSkipped ||
     test.mode === 'skip' ||
-    (hasFocusedTests && test.mode !== 'only') ||
+    (hasFocusedTests && test.mode === undefined) ||
     (testNamePattern && !testNamePattern.test(getTestID(test)));
 
   if (isSkipped) {
@@ -113,6 +180,8 @@ const _runTest = async (
     await dispatch({name: 'test_todo', test});
     return;
   }
+
+  await dispatch({name: 'test_started', test});
 
   const {afterEach, beforeEach} = getEachHooksForTest(test);
 
@@ -141,7 +210,7 @@ const _callCircusHook = async ({
   hook,
   test,
   describeBlock,
-  testContext,
+  testContext = {},
 }: {
   hook: Circus.Hook;
   describeBlock?: Circus.DescribeBlock;
@@ -168,7 +237,7 @@ const _callCircusTest = async (
 ): Promise<void> => {
   await dispatch({name: 'test_fn_start', test});
   const timeout = test.timeout || getState().testTimeout;
-  invariant(test.fn, `Tests with no 'fn' should have 'mode' set to 'skipped'`);
+  invariant(test.fn, "Tests with no 'fn' should have 'mode' set to 'skipped'");
 
   if (test.errors.length) {
     return; // We don't run the test if there's already an error in before hooks.
@@ -179,9 +248,23 @@ const _callCircusTest = async (
       isHook: false,
       timeout,
     });
-    await dispatch({name: 'test_fn_success', test});
+    if (test.failing) {
+      test.asyncError.message =
+        'Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.';
+      await dispatch({
+        error: test.asyncError,
+        name: 'test_fn_failure',
+        test,
+      });
+    } else {
+      await dispatch({name: 'test_fn_success', test});
+    }
   } catch (error) {
-    await dispatch({error, name: 'test_fn_failure', test});
+    if (test.failing) {
+      await dispatch({name: 'test_fn_success', test});
+    } else {
+      await dispatch({error, name: 'test_fn_failure', test});
+    }
   }
 };
 

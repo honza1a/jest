@@ -1,22 +1,23 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
+import {performance} from 'perf_hooks';
 import chalk = require('chalk');
 import exit = require('exit');
-import rimraf = require('rimraf');
+import * as fs from 'graceful-fs';
 import {CustomConsole} from '@jest/console';
-import type {AggregatedResult} from '@jest/test-result';
+import type {AggregatedResult, TestContext} from '@jest/test-result';
 import type {Config} from '@jest/types';
 import type {ChangedFilesPromise} from 'jest-changed-files';
 import {readConfigs} from 'jest-config';
-import type HasteMap from 'jest-haste-map';
-import Runtime, {Context} from 'jest-runtime';
-import {createDirectory, preRunMessage} from 'jest-util';
-import TestWatcher from '../TestWatcher';
+import type {IHasteMap} from 'jest-haste-map';
+import Runtime from 'jest-runtime';
+import {createDirectory, pluralize, preRunMessage} from 'jest-util';
+import {TestWatcher} from 'jest-watcher';
 import {formatHandleErrors} from '../collectHandles';
 import getChangedFilesPromise from '../getChangedFilesPromise';
 import getConfigsOfProjectsToRun from '../getConfigsOfProjectsToRun';
@@ -25,7 +26,6 @@ import getSelectProjectsMessage from '../getSelectProjectsMessage';
 import createContext from '../lib/createContext';
 import handleDeprecationWarnings from '../lib/handleDeprecationWarnings';
 import logDebugMessages from '../lib/logDebugMessages';
-import pluralize from '../pluralize';
 import runJest from '../runJest';
 import type {Filter} from '../types';
 import watch from '../watch';
@@ -36,11 +36,12 @@ type OnCompleteCallback = (results: AggregatedResult) => void | undefined;
 
 export async function runCLI(
   argv: Config.Argv,
-  projects: Array<Config.Path>,
+  projects: Array<string>,
 ): Promise<{
   results: AggregatedResult;
   globalConfig: Config.GlobalConfig;
 }> {
+  performance.mark('jest/runCLI:start');
   let results: AggregatedResult | undefined;
 
   // If we output a JSON object, we can't write anything to stdout, since
@@ -63,25 +64,35 @@ export async function runCLI(
   }
 
   if (argv.clearCache) {
-    configs.forEach(config => {
-      rimraf.sync(config.cacheDirectory);
-      process.stdout.write(`Cleared ${config.cacheDirectory}\n`);
-    });
+    // stick in a Set to dedupe the deletions
+    new Set(configs.map(config => config.cacheDirectory)).forEach(
+      cacheDirectory => {
+        fs.rmSync(cacheDirectory, {force: true, recursive: true});
+        process.stdout.write(`Cleared ${cacheDirectory}\n`);
+      },
+    );
 
     exit(0);
   }
 
-  let configsOfProjectsToRun = configs;
-  if (argv.selectProjects) {
-    const namesMissingWarning = getProjectNamesMissingWarning(configs);
+  const configsOfProjectsToRun = getConfigsOfProjectsToRun(configs, {
+    ignoreProjects: argv.ignoreProjects,
+    selectProjects: argv.selectProjects,
+  });
+  if (argv.selectProjects || argv.ignoreProjects) {
+    const namesMissingWarning = getProjectNamesMissingWarning(configs, {
+      ignoreProjects: argv.ignoreProjects,
+      selectProjects: argv.selectProjects,
+    });
     if (namesMissingWarning) {
       outputStream.write(namesMissingWarning);
     }
-    configsOfProjectsToRun = getConfigsOfProjectsToRun(
-      argv.selectProjects,
-      configs,
+    outputStream.write(
+      getSelectProjectsMessage(configsOfProjectsToRun, {
+        ignoreProjects: argv.ignoreProjects,
+        selectProjects: argv.selectProjects,
+      }),
     );
-    outputStream.write(getSelectProjectsMessage(configsOfProjectsToRun));
   }
 
   await _run10000(
@@ -98,6 +109,7 @@ export async function runCLI(
     // If in watch mode, return the promise that will never resolve.
     // If the watch mode is interrupted, watch should handle the process
     // shutdown.
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     return new Promise(() => {});
   }
 
@@ -122,6 +134,7 @@ export async function runCLI(
     console.error(message);
   }
 
+  performance.mark('jest/runCLI:end');
   return {globalConfig, results};
 }
 
@@ -134,7 +147,7 @@ const buildContextsAndHasteMaps = async (
   const contexts = await Promise.all(
     configs.map(async (config, index) => {
       createDirectory(config.cacheDirectory);
-      const hasteMapInstance = Runtime.createHasteMap(config, {
+      const hasteMapInstance = await Runtime.createHasteMap(config, {
         console: new CustomConsole(outputStream, outputStream),
         maxWorkers: Math.max(
           1,
@@ -143,6 +156,7 @@ const buildContextsAndHasteMaps = async (
         resetCache: !config.cache,
         watch: globalConfig.watch || globalConfig.watchAll,
         watchman: globalConfig.watchman,
+        workerThreads: globalConfig.workerThreads,
       });
       hasteMapInstances[index] = hasteMapInstance;
       return createContext(config, await hasteMapInstance.build());
@@ -162,13 +176,19 @@ const _run10000 = async (
   // Queries to hg/git can take a while, so we need to start the process
   // as soon as possible, so by the time we need the result it's already there.
   const changedFilesPromise = getChangedFilesPromise(globalConfig, configs);
+  if (changedFilesPromise) {
+    performance.mark('jest/getChangedFiles:start');
+    changedFilesPromise.finally(() => {
+      performance.mark('jest/getChangedFiles:end');
+    });
+  }
 
   // Filter may need to do an HTTP call or something similar to setup.
   // We will wait on an async response from this before using the filter.
   let filter: Filter | undefined;
   if (globalConfig.filter && !globalConfig.skipFilter) {
     const rawFilter = require(globalConfig.filter);
-    let filterSetupPromise: Promise<Error | undefined> | undefined;
+    let filterSetupPromise: Promise<unknown | undefined> | undefined;
     if (rawFilter.setup) {
       // Wrap filter setup Promise to avoid "uncaught Promise" error.
       // If an error is returned, we surface it in the return value.
@@ -193,11 +213,13 @@ const _run10000 = async (
     };
   }
 
+  performance.mark('jest/buildContextsAndHasteMaps:start');
   const {contexts, hasteMapInstances} = await buildContextsAndHasteMaps(
     configs,
     globalConfig,
     outputStream,
   );
+  performance.mark('jest/buildContextsAndHasteMaps:end');
 
   globalConfig.watch || globalConfig.watchAll
     ? await runWatch(
@@ -220,18 +242,18 @@ const _run10000 = async (
 };
 
 const runWatch = async (
-  contexts: Array<Context>,
+  contexts: Array<TestContext>,
   _configs: Array<Config.ProjectConfig>,
   hasDeprecationWarnings: boolean,
   globalConfig: Config.GlobalConfig,
   outputStream: NodeJS.WriteStream,
-  hasteMapInstances: Array<HasteMap>,
+  hasteMapInstances: Array<IHasteMap>,
   filter?: Filter,
 ) => {
   if (hasDeprecationWarnings) {
     try {
       await handleDeprecationWarnings(outputStream, process.stdin);
-      return watch(
+      return await watch(
         globalConfig,
         contexts,
         outputStream,
@@ -258,7 +280,7 @@ const runWatch = async (
 
 const runWithoutWatch = async (
   globalConfig: Config.GlobalConfig,
-  contexts: Array<Context>,
+  contexts: Array<TestContext>,
   outputStream: NodeJS.WriteStream,
   onComplete: OnCompleteCallback,
   changedFilesPromise?: ChangedFilesPromise,

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -20,8 +20,6 @@ import {
   stringify,
 } from '../';
 
-const isBigIntDefined = typeof BigInt === 'function';
-
 expect.addSnapshotSerializer(alignedAnsiStyleSerializer);
 
 describe('stringify()', () => {
@@ -39,8 +37,8 @@ describe('stringify()', () => {
     [Infinity, 'Infinity'],
     [-Infinity, '-Infinity'],
     [/ab\.c/gi, '/ab\\.c/gi'],
-    isBigIntDefined ? [BigInt(1), '1n'] : [12, '12'],
-    isBigIntDefined ? [BigInt(0), '0n'] : [123, '123'],
+    [BigInt(1), '1n'],
+    [BigInt(0), '0n'],
   ].forEach(([v, s]) => {
     test(stringify(v), () => {
       expect(stringify(v)).toBe(s);
@@ -99,6 +97,23 @@ describe('stringify()', () => {
     expect(stringify(big)).toBe(prettyFormat(big, {maxDepth: 1, min: true}));
     expect(stringify(small)).toBe(prettyFormat(small, {min: true}));
   });
+
+  test('reduces maxWidth if stringifying very large arrays', () => {
+    const big: any = [];
+    const small: any = [];
+    const testString = Array(1000).join('x');
+
+    for (let i = 0; i < 100; i += 1) {
+      big[i] = testString;
+    }
+
+    for (let i = 0; i < 3; i += 1) {
+      small[i] = testString;
+    }
+
+    expect(stringify(big)).toBe(prettyFormat(big, {maxWidth: 5, min: true}));
+    expect(stringify(small)).toBe(prettyFormat(small, {min: true}));
+  });
 });
 
 describe('ensureNumbers()', () => {
@@ -108,11 +123,9 @@ describe('ensureNumbers()', () => {
     expect(() => {
       ensureNumbers(1, 2, matcherName);
     }).not.toThrow();
-    if (isBigIntDefined) {
-      expect(() => {
-        ensureNumbers(BigInt(1), BigInt(2), matcherName);
-      }).not.toThrow();
-    }
+    expect(() => {
+      ensureNumbers(BigInt(1), BigInt(2), matcherName);
+    }).not.toThrow();
   });
 
   test('throws error when expected is not a number (backward compatibility)', () => {
@@ -226,31 +239,29 @@ describe('diff', () => {
       ['a', 1],
       ['a', true],
       [1, true],
-      [isBigIntDefined ? BigInt(1) : 1, true],
+      [BigInt(1), true],
     ].forEach(([actual, expected]) =>
       expect(diff(actual, expected)).toBe('diff output'),
     );
   });
 
   test('two booleans', () => {
-    expect(diff(false, true)).toBe(null);
+    expect(diff(false, true)).toBeNull();
   });
 
   test('two numbers', () => {
-    expect(diff(1, 2)).toBe(null);
+    expect(diff(1, 2)).toBeNull();
   });
 
-  if (isBigIntDefined) {
-    test('two bigints', () => {
-      expect(diff(BigInt(1), BigInt(2))).toBe(null);
-    });
-  }
+  test('two bigints', () => {
+    expect(diff(BigInt(1), BigInt(2))).toBeNull();
+  });
 });
 
 describe('pluralize()', () => {
-  test('one', () => expect(pluralize('apple', 1)).toEqual('one apple'));
-  test('two', () => expect(pluralize('apple', 2)).toEqual('two apples'));
-  test('20', () => expect(pluralize('apple', 20)).toEqual('20 apples'));
+  test('one', () => expect(pluralize('apple', 1)).toBe('one apple'));
+  test('two', () => expect(pluralize('apple', 2)).toBe('two apples'));
+  test('20', () => expect(pluralize('apple', 20)).toBe('20 apples'));
 });
 
 describe('getLabelPrinter', () => {
@@ -299,7 +310,7 @@ describe('getLabelPrinter', () => {
     expect(printLabel(stringConsistent)).toBe('Expected:       ');
     expect(() => {
       printLabel(stringInconsistentLonger);
-    }).toThrow();
+    }).toThrow('Invalid count value');
   });
 });
 
@@ -346,5 +357,39 @@ describe('matcherHint', () => {
 
     expect(received).not.toMatch(substringNegative);
     expect(received).toMatch(substringPositive);
+  });
+});
+
+describe('printDiffOrStringify', () => {
+  test('expected asymmetric matchers should be diffable', () => {
+    jest.dontMock('jest-diff');
+    jest.resetModules();
+    const {printDiffOrStringify} = require('../');
+
+    const expected = expect.objectContaining({
+      array: [
+        {
+          3: 'three',
+          four: '4',
+          one: 1,
+          two: 2,
+        },
+      ],
+      foo: 'bar',
+    });
+    const received = {
+      array: [
+        {
+          3: 'three',
+          four: '4',
+          one: 1,
+          two: 1,
+        },
+      ],
+      foo: 'bar',
+    };
+    expect(
+      printDiffOrStringify(expected, received, 'Expected', 'Received', false),
+    ).toMatchSnapshot();
   });
 });

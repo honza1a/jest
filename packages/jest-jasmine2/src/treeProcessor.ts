@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -25,6 +25,9 @@ export type TreeNode = {
   children?: Array<TreeNode>;
 } & Pick<Suite, 'getResult' | 'parentSuite' | 'result' | 'markedPending'>;
 
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+const noop = () => {};
+
 export default function treeProcessor(options: Options): void {
   const {nodeComplete, nodeStart, queueRunnerFactory, runnableIds, tree} =
     options;
@@ -41,13 +44,13 @@ export default function treeProcessor(options: Options): void {
   }
 
   function getNodeWithoutChildrenHandler(node: TreeNode, enabled: boolean) {
-    return function fn(done: (error?: unknown) => void = () => {}) {
+    return function fn(done: (error?: unknown) => void = noop) {
       node.execute(done, enabled);
     };
   }
 
   function getNodeWithChildrenHandler(node: TreeNode, enabled: boolean) {
-    return async function fn(done: (error?: unknown) => void = () => {}) {
+    return async function fn(done: (error?: unknown) => void = noop) {
       nodeStart(node);
       await queueRunnerFactory({
         onException: (error: Error) => node.onException(error),

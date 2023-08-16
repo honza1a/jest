@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -9,6 +9,8 @@
 
 import * as asyncHooks from 'async_hooks';
 import {promisify} from 'util';
+import * as v8 from 'v8';
+import * as vm from 'vm';
 import stripAnsi = require('strip-ansi');
 import type {Config} from '@jest/types';
 import {formatExecError} from 'jest-message-util';
@@ -40,10 +42,26 @@ function stackIsFromUser(stack: string) {
 
 const alwaysActive = () => true;
 
-// @ts-expect-error: doesn't exist in v10 typings
+// @ts-expect-error: doesn't exist in v12 typings
 const hasWeakRef = typeof WeakRef === 'function';
 
 const asyncSleep = promisify(setTimeout);
+
+let gcFunc: (() => void) | undefined = (globalThis as any).gc;
+function runGC() {
+  if (!gcFunc) {
+    v8.setFlagsFromString('--expose-gc');
+    gcFunc = vm.runInNewContext('gc');
+    v8.setFlagsFromString('--no-expose-gc');
+    if (!gcFunc) {
+      throw new Error(
+        'Cannot find `global.gc` function. Please run node with `--expose-gc` and report this issue in jest repo.',
+      );
+    }
+  }
+
+  gcFunc();
+}
 
 // Inspired by https://github.com/mafintosh/why-is-node-running/blob/master/index.js
 // Extracted as we want to format the result ourselves
@@ -71,7 +89,9 @@ export default function collectHandles(): HandleCollectionResult {
         type === 'ELDHISTOGRAM' ||
         type === 'PerformanceObserver' ||
         type === 'RANDOMBYTESREQUEST' ||
-        type === 'DNSCHANNEL'
+        type === 'DNSCHANNEL' ||
+        type === 'ZLIB' ||
+        type === 'SIGNREQUEST'
       ) {
         return;
       }
@@ -92,25 +112,19 @@ export default function collectHandles(): HandleCollectionResult {
       if (fromUser) {
         let isActive: () => boolean;
 
-        if (type === 'Timeout' || type === 'Immediate') {
-          // Timer that supports hasRef (Node v11+)
-          if ('hasRef' in resource) {
-            if (hasWeakRef) {
-              // @ts-expect-error: doesn't exist in v10 typings
-              const ref = new WeakRef(resource);
-              isActive = () => {
-                return ref.deref()?.hasRef() ?? false;
-              };
-            } else {
-              // @ts-expect-error: doesn't exist in v10 typings
-              isActive = resource.hasRef.bind(resource);
-            }
+        // Handle that supports hasRef
+        if ('hasRef' in resource) {
+          if (hasWeakRef) {
+            // @ts-expect-error: doesn't exist in v12 typings
+            const ref = new WeakRef(resource);
+            isActive = () => {
+              return ref.deref()?.hasRef() ?? false;
+            };
           } else {
-            // Timer that doesn't support hasRef
-            isActive = alwaysActive;
+            isActive = resource.hasRef.bind(resource);
           }
         } else {
-          // Any other async resource
+          // Handle that doesn't support hasRef
           isActive = alwaysActive;
         }
 
@@ -128,6 +142,14 @@ export default function collectHandles(): HandleCollectionResult {
     // `close` callback runs. If someone finishes a test from the `close`
     // callback, we will not yet have seen the resource be destroyed here.
     await asyncSleep(100);
+
+    if (activeHandles.size > 0) {
+      // For some special objects such as `TLSWRAP`.
+      // Ref: https://github.com/jestjs/jest/issues/11665
+      runGC();
+
+      await asyncSleep(0);
+    }
 
     hook.disable();
 

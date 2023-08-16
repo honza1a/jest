@@ -1,11 +1,13 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
 import * as path from 'path';
+import {fileURLToPath} from 'url';
+import {types} from 'util';
 import {codeFrameColumns} from '@babel/code-frame';
 import chalk = require('chalk');
 import * as fs from 'graceful-fs';
@@ -17,8 +19,6 @@ import {format as prettyFormat} from 'pretty-format';
 import type {Frame} from './types';
 
 export type {Frame} from './types';
-
-type Path = Config.Path;
 
 // stack utils tries to create pretty stack by making paths relative.
 const stackUtils = new StackUtils({cwd: 'something which does not exist'});
@@ -47,7 +47,7 @@ const PATH_JEST_PACKAGES = `${path.sep}jest${path.sep}packages${path.sep}`;
 
 // filter for noisy stack trace lines
 const JASMINE_IGNORE =
-  /^\s+at(?:(?:.jasmine\-)|\s+jasmine\.buildExpectationResult)/;
+  /^\s+at(?:(?:.jasmine-)|\s+jasmine\.buildExpectationResult)/;
 const JEST_INTERNALS_IGNORE =
   /^\s+at.*?jest(-.*?)?(\/|\\)(build|node_modules|packages)(\/|\\)/;
 const ANONYMOUS_FN_IGNORE = /^\s+at <anonymous>.*$/;
@@ -60,12 +60,12 @@ const STACK_INDENT = '      ';
 const ANCESTRY_SEPARATOR = ' \u203A ';
 const TITLE_BULLET = chalk.bold('\u25cf ');
 const STACK_TRACE_COLOR = chalk.dim;
-const STACK_PATH_REGEXP = /\s*at.*\(?(\:\d*\:\d*|native)\)?/;
+const STACK_PATH_REGEXP = /\s*at.*\(?(:\d*:\d*|native)\)?/;
 const EXEC_ERROR_MESSAGE = 'Test suite failed to run';
 const NOT_EMPTY_LINE_REGEXP = /^(?!$)/gm;
 
-const indentAllLines = (lines: string, indent: string) =>
-  lines.replace(NOT_EMPTY_LINE_REGEXP, indent);
+export const indentAllLines = (lines: string): string =>
+  lines.replace(NOT_EMPTY_LINE_REGEXP, MESSAGE_INDENT);
 
 const trim = (string: string) => (string || '').trim();
 
@@ -87,7 +87,7 @@ const getRenderedCallsite = (
     {highlightCode: true},
   );
 
-  renderedCallsite = indentAllLines(renderedCallsite, MESSAGE_INDENT);
+  renderedCallsite = indentAllLines(renderedCallsite);
 
   renderedCallsite = `\n${renderedCallsite}\n`;
   return renderedCallsite;
@@ -123,11 +123,12 @@ function warnAboutWrongTestEnvironment(error: string, env: 'jsdom' | 'node') {
 // `before/after each` hooks). If it's thrown, none of the tests in the file
 // are executed.
 export const formatExecError = (
-  error: Error | TestResult.SerializableError | string | undefined,
+  error: Error | TestResult.SerializableError | string | number | undefined,
   config: StackTraceConfig,
   options: StackTraceOptions,
-  testPath?: Path,
+  testPath?: string,
   reuseMessage?: boolean,
+  noTitle?: boolean,
 ): string => {
   if (!error || typeof error === 'number') {
     error = new Error(`Expected an Error, but "${String(error)}" was thrown`);
@@ -135,6 +136,8 @@ export const formatExecError = (
   }
 
   let message, stack;
+  let cause = '';
+  const subErrors = [];
 
   if (typeof error === 'string' || !error) {
     error || (error = 'EMPTY ERROR');
@@ -146,6 +149,47 @@ export const formatExecError = (
       typeof error.stack === 'string'
         ? error.stack
         : `thrown: ${prettyFormat(error, {maxDepth: 3})}`;
+    if ('cause' in error) {
+      const prefix = '\n\nCause:\n';
+      if (typeof error.cause === 'string' || typeof error.cause === 'number') {
+        cause += `${prefix}${error.cause}`;
+      } else if (
+        types.isNativeError(error.cause) ||
+        error.cause instanceof Error
+      ) {
+        /* `isNativeError` is used, because the error might come from another realm.
+         `instanceof Error` is used because `isNativeError` does return `false` for some
+         things that are `instanceof Error` like the errors provided in
+         [verror](https://www.npmjs.com/package/verror) or [axios](https://axios-http.com).
+        */
+        const formatted = formatExecError(
+          error.cause,
+          config,
+          options,
+          testPath,
+          reuseMessage,
+          true,
+        );
+        cause += `${prefix}${formatted}`;
+      }
+    }
+    if ('errors' in error && Array.isArray(error.errors)) {
+      for (const subError of error.errors) {
+        subErrors.push(
+          formatExecError(
+            subError,
+            config,
+            options,
+            testPath,
+            reuseMessage,
+            true,
+          ),
+        );
+      }
+    }
+  }
+  if (cause !== '') {
+    cause = indentAllLines(cause);
   }
 
   const separated = separateMessageFromStack(stack || '');
@@ -158,11 +202,11 @@ export const formatExecError = (
 
   message = checkForCommonEnvironmentErrors(message);
 
-  message = indentAllLines(message, MESSAGE_INDENT);
+  message = indentAllLines(message);
 
   stack =
     stack && !options.noStackTrace
-      ? '\n' + formatStackTrace(stack, config, options, testPath)
+      ? `\n${formatStackTrace(stack, config, options, testPath)}`
       : '';
 
   if (
@@ -175,13 +219,20 @@ export const formatExecError = (
 
   let messageToUse;
 
-  if (reuseMessage) {
+  if (reuseMessage || noTitle) {
     messageToUse = ` ${message.trim()}`;
   } else {
     messageToUse = `${EXEC_ERROR_MESSAGE}\n\n${message}`;
   }
+  const title = noTitle ? '' : `${TITLE_INDENT + TITLE_BULLET}`;
+  const subErrorStr =
+    subErrors.length > 0
+      ? indentAllLines(
+          `\n\nErrors contained in AggregateError:\n${subErrors.join('\n')}`,
+        )
+      : '';
 
-  return TITLE_INDENT + TITLE_BULLET + messageToUse + stack + '\n';
+  return `${title + messageToUse + stack + cause + subErrorStr}\n`;
 };
 
 const removeInternalStackEntries = (
@@ -235,11 +286,11 @@ const removeInternalStackEntries = (
   });
 };
 
-const formatPaths = (
-  config: StackTraceConfig,
-  relativeTestPath: Path | null,
+export const formatPath = (
   line: string,
-) => {
+  config: StackTraceConfig,
+  relativeTestPath: string | null = null,
+): string => {
   // Extract the file path from the trace line.
   const match = line.match(/(^\s*at .*?\(?)([^()]+)(:[0-9]+:[0-9]+\)?.*$)/);
   if (!match) {
@@ -273,6 +324,9 @@ export const getTopFrame = (lines: Array<string>): Frame | null => {
     const parsedFrame = stackUtils.parseLine(line.trim());
 
     if (parsedFrame && parsedFrame.file) {
+      if (parsedFrame.file.startsWith('file://')) {
+        parsedFrame.file = slash(fileURLToPath(parsedFrame.file));
+      }
       return parsedFrame as Frame;
     }
   }
@@ -284,7 +338,7 @@ export const formatStackTrace = (
   stack: string,
   config: StackTraceConfig,
   options: StackTraceOptions,
-  testPath?: Path,
+  testPath?: string,
 ): string => {
   const lines = getStackTraceLines(stack, options);
   let renderedCallsite = '';
@@ -301,7 +355,7 @@ export const formatStackTrace = (
         let fileContent;
         try {
           // TODO: check & read HasteFS instead of reading the filesystem:
-          // see: https://github.com/facebook/jest/pull/5405#discussion_r164281696
+          // see: https://github.com/jestjs/jest/pull/5405#discussion_r164281696
           fileContent = fs.readFileSync(filename, 'utf8');
           renderedCallsite = getRenderedCallsite(fileContent, line, column);
         } catch {
@@ -315,7 +369,7 @@ export const formatStackTrace = (
     .filter(Boolean)
     .map(
       line =>
-        STACK_INDENT + formatPaths(config, relativeTestPath, trimPaths(line)),
+        STACK_INDENT + formatPath(trimPaths(line), config, relativeTestPath),
     )
     .join('\n');
 
@@ -325,20 +379,95 @@ export const formatStackTrace = (
 };
 
 type FailedResults = Array<{
+  /** Stringified version of the error */
   content: string;
+  /** Details related to the failure */
+  failureDetails: unknown;
+  /** Execution result */
   result: TestResult.AssertionResult;
 }>;
+
+function isErrorOrStackWithCause(
+  errorOrStack: Error | string,
+): errorOrStack is Error & {cause: Error | string} {
+  return (
+    typeof errorOrStack !== 'string' &&
+    'cause' in errorOrStack &&
+    (typeof errorOrStack.cause === 'string' ||
+      types.isNativeError(errorOrStack.cause) ||
+      errorOrStack.cause instanceof Error)
+  );
+}
+
+function formatErrorStack(
+  errorOrStack: Error | string,
+  config: StackTraceConfig,
+  options: StackTraceOptions,
+  testPath?: string,
+): string {
+  // The stack of new Error('message') contains both the message and the stack,
+  // thus we need to sanitize and clean it for proper display using separateMessageFromStack.
+  const sourceStack =
+    typeof errorOrStack === 'string' ? errorOrStack : errorOrStack.stack || '';
+  let {message, stack} = separateMessageFromStack(sourceStack);
+  stack = options.noStackTrace
+    ? ''
+    : `${STACK_TRACE_COLOR(
+        formatStackTrace(stack, config, options, testPath),
+      )}\n`;
+
+  message = checkForCommonEnvironmentErrors(message);
+  message = indentAllLines(message);
+
+  let cause = '';
+  if (isErrorOrStackWithCause(errorOrStack)) {
+    const nestedCause = formatErrorStack(
+      errorOrStack.cause,
+      config,
+      options,
+      testPath,
+    );
+    cause = `\n${MESSAGE_INDENT}Cause:\n${nestedCause}`;
+  }
+
+  return `${message}\n${stack}${cause}`;
+}
+
+function failureDetailsToErrorOrStack(
+  failureDetails: unknown,
+  content: string,
+): Error | string {
+  if (!failureDetails) {
+    return content;
+  }
+  if (types.isNativeError(failureDetails) || failureDetails instanceof Error) {
+    return failureDetails; // receiving raw errors for jest-circus
+  }
+  if (
+    typeof failureDetails === 'object' &&
+    'error' in failureDetails &&
+    (types.isNativeError(failureDetails.error) ||
+      failureDetails.error instanceof Error)
+  ) {
+    return failureDetails.error; // receiving instances of FailedAssertion for jest-jasmine
+  }
+  return content;
+}
 
 export const formatResultsErrors = (
   testResults: Array<TestResult.AssertionResult>,
   config: StackTraceConfig,
   options: StackTraceOptions,
-  testPath?: Path,
+  testPath?: string,
 ): string | null => {
   const failedResults: FailedResults = testResults.reduce<FailedResults>(
     (errors, result) => {
-      result.failureMessages.forEach(item => {
-        errors.push({content: checkForCommonEnvironmentErrors(item), result});
+      result.failureMessages.forEach((item, index) => {
+        errors.push({
+          content: item,
+          failureDetails: result.failureDetails[index],
+          result,
+        });
       });
       return errors;
     },
@@ -350,26 +479,26 @@ export const formatResultsErrors = (
   }
 
   return failedResults
-    .map(({result, content}) => {
-      let {message, stack} = separateMessageFromStack(content);
-      stack = options.noStackTrace
-        ? ''
-        : STACK_TRACE_COLOR(
-            formatStackTrace(stack, config, options, testPath),
-          ) + '\n';
+    .map(({result, content, failureDetails}) => {
+      const rootErrorOrStack = failureDetailsToErrorOrStack(
+        failureDetails,
+        content,
+      );
 
-      message = indentAllLines(message, MESSAGE_INDENT);
+      const title = `${chalk.bold.red(
+        TITLE_INDENT +
+          TITLE_BULLET +
+          result.ancestorTitles.join(ANCESTRY_SEPARATOR) +
+          (result.ancestorTitles.length ? ANCESTRY_SEPARATOR : '') +
+          result.title,
+      )}\n`;
 
-      const title =
-        chalk.bold.red(
-          TITLE_INDENT +
-            TITLE_BULLET +
-            result.ancestorTitles.join(ANCESTRY_SEPARATOR) +
-            (result.ancestorTitles.length ? ANCESTRY_SEPARATOR : '') +
-            result.title,
-        ) + '\n';
-
-      return title + '\n' + message + '\n' + stack;
+      return `${title}\n${formatErrorStack(
+        rootErrorOrStack,
+        config,
+        options,
+        testPath,
+      )}`;
     })
     .join('\n');
 };

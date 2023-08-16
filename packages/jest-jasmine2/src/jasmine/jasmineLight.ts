@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,7 +7,7 @@
  */
 // This file is a heavily modified fork of Jasmine. Original license:
 /*
-Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+Copyright (c) 2008-2016 Pivotal Labs
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -40,10 +40,32 @@ import Timer from './Timer';
 import createSpy from './createSpy';
 import SpyRegistry from './spyRegistry';
 
+const testTimeoutSymbol = Symbol.for('TEST_TIMEOUT_SYMBOL');
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace NodeJS {
+    interface Global {
+      [testTimeoutSymbol]: number;
+    }
+  }
+}
+
 export const create = function (createOptions: Record<string, any>): Jasmine {
   const j$ = {...createOptions} as Jasmine;
 
-  j$._DEFAULT_TIMEOUT_INTERVAL = createOptions.testTimeout || 5000;
+  Object.defineProperty(j$, '_DEFAULT_TIMEOUT_INTERVAL', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      // eslint-disable-next-line no-restricted-globals
+      return global[testTimeoutSymbol] || createOptions.testTimeout || 5000;
+    },
+    set(value) {
+      // eslint-disable-next-line no-restricted-globals
+      global[testTimeoutSymbol] = value;
+    },
+  });
 
   j$.getEnv = function () {
     const env = (j$.currentEnv_ = j$.currentEnv_ || new j$.Env());

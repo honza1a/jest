@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -18,25 +18,19 @@ export const interpolateVariables = (
   template: Template,
   index: number,
 ): string =>
-  Object.keys(template)
-    .reduce(getMatchingKeyPaths(title), []) // aka flatMap
-    .reduce(replaceKeyPathWithValue(template), title)
-    .replace('$#', '' + index);
+  title
+    .replace(
+      new RegExp(`\\$(${Object.keys(template).join('|')})[.\\w]*`, 'g'),
+      match => {
+        const keyPath = match.slice(1).split('.');
+        const value = getPath(template, keyPath);
 
-const getMatchingKeyPaths =
-  (title: string) => (matches: Headings, key: string) =>
-    matches.concat(title.match(new RegExp(`\\$${key}[\\.\\w]*`, 'g')) || []);
-
-const replaceKeyPathWithValue =
-  (template: Template) => (title: string, match: string) => {
-    const keyPath = match.replace('$', '').split('.');
-    const value = getPath(template, keyPath);
-
-    if (isPrimitive(value)) {
-      return title.replace(match, String(value));
-    }
-    return title.replace(match, pretty(value, {maxDepth: 1, min: true}));
-  };
+        return isPrimitive(value)
+          ? String(value)
+          : pretty(value, {maxDepth: 1, min: true});
+      },
+    )
+    .replace('$#', `${index}`);
 
 /* eslint import/export: 0*/
 export function getPath<
@@ -77,7 +71,7 @@ export function getPath(
   template: Template,
   [head, ...tail]: Array<string>,
 ): unknown {
-  if (!head || !template.hasOwnProperty || !template.hasOwnProperty(head))
+  if (!head || !Object.prototype.hasOwnProperty.call(template, head))
     return template;
   return getPath(template[head] as Template, tail);
 }

@@ -11,8 +11,8 @@ There are two ways to mock functions: Either by creating a mock function to use 
 
 Let's imagine we're testing an implementation of a function `forEach`, which invokes a callback for each item in a supplied array.
 
-```javascript
-function forEach(items, callback) {
+```js title="forEach.js"
+export function forEach(items, callback) {
   for (let index = 0; index < items.length; index++) {
     callback(items[index]);
   }
@@ -21,21 +21,26 @@ function forEach(items, callback) {
 
 To test this function, we can use a mock function, and inspect the mock's state to ensure the callback is invoked as expected.
 
-```javascript
+```js title="forEach.test.js"
+const forEach = require('./forEach');
+
 const mockCallback = jest.fn(x => 42 + x);
-forEach([0, 1], mockCallback);
 
-// The mock function is called twice
-expect(mockCallback.mock.calls.length).toBe(2);
+test('forEach mock function', () => {
+  forEach([0, 1], mockCallback);
 
-// The first argument of the first call to the function was 0
-expect(mockCallback.mock.calls[0][0]).toBe(0);
+  // The mock function was called twice
+  expect(mockCallback.mock.calls).toHaveLength(2);
 
-// The first argument of the second call to the function was 1
-expect(mockCallback.mock.calls[1][0]).toBe(1);
+  // The first argument of the first call to the function was 0
+  expect(mockCallback.mock.calls[0][0]).toBe(0);
 
-// The return value of the first call to the function was 42
-expect(mockCallback.mock.results[0].value).toBe(42);
+  // The first argument of the second call to the function was 1
+  expect(mockCallback.mock.calls[1][0]).toBe(1);
+
+  // The return value of the first call to the function was 42
+  expect(mockCallback.mock.results[0].value).toBe(42);
+});
 ```
 
 ## `.mock` property
@@ -58,7 +63,7 @@ These mock members are very useful in tests to assert how these functions get ca
 
 ```javascript
 // The function was called exactly once
-expect(someMockFunction.mock.calls.length).toBe(1);
+expect(someMockFunction.mock.calls).toHaveLength(1);
 
 // The first arg of the first call to the function was 'first arg'
 expect(someMockFunction.mock.calls[0][0]).toBe('first arg');
@@ -74,7 +79,7 @@ expect(someMockFunction.mock.instances.length).toBe(2);
 
 // The object returned by the first instantiation of this function
 // had a `name` property whose value was set to 'test'
-expect(someMockFunction.mock.instances[0].name).toEqual('test');
+expect(someMockFunction.mock.instances[0].name).toBe('test');
 ```
 
 ## Mock Return Values
@@ -115,8 +120,7 @@ Most real-world examples actually involve getting ahold of a mock function on a 
 
 Suppose we have a class that fetches users from our API. The class uses [axios](https://github.com/axios/axios) to call the API then returns the `data` attribute which contains all the users:
 
-```js
-// users.js
+```js title="users.js"
 import axios from 'axios';
 
 class Users {
@@ -132,8 +136,7 @@ Now, in order to test this method without actually hitting the API (and thus cre
 
 Once we mock the module we can provide a `mockResolvedValue` for `.get` that returns the data we want our test to assert against. In effect, we are saying that we want `axios.get('/users.json')` to return a fake response.
 
-```js
-// users.test.js
+```js title="users.test.js"
 import axios from 'axios';
 import Users from './users';
 
@@ -151,6 +154,42 @@ test('should fetch users', () => {
 });
 ```
 
+## Mocking Partials
+
+Subsets of a module can be mocked and the rest of the module can keep their actual implementation:
+
+```js title="foo-bar-baz.js"
+export const foo = 'foo';
+export const bar = () => 'bar';
+export default () => 'baz';
+```
+
+```js
+//test.js
+import defaultExport, {bar, foo} from '../foo-bar-baz';
+
+jest.mock('../foo-bar-baz', () => {
+  const originalModule = jest.requireActual('../foo-bar-baz');
+
+  //Mock the default export and named export 'foo'
+  return {
+    __esModule: true,
+    ...originalModule,
+    default: jest.fn(() => 'mocked baz'),
+    foo: 'mocked foo',
+  };
+});
+
+test('should do a partial mock', () => {
+  const defaultExportResult = defaultExport();
+  expect(defaultExportResult).toBe('mocked baz');
+  expect(defaultExport).toHaveBeenCalled();
+
+  expect(foo).toBe('mocked foo');
+  expect(bar()).toBe('bar');
+});
+```
+
 ## Mock Implementations
 
 Still, there are cases where it's useful to go beyond the ability to specify return values and full-on replace the implementation of a mock function. This can be done with `jest.fn` or the `mockImplementationOnce` method on mock functions.
@@ -164,13 +203,13 @@ myMockFn((err, val) => console.log(val));
 
 The `mockImplementation` method is useful when you need to define the default implementation of a mock function that is created from another module:
 
-```js
-// foo.js
+```js title="foo.js"
 module.exports = function () {
   // some implementation;
 };
+```
 
-// test.js
+```js title="test.js"
 jest.mock('../foo'); // this happens automatically with automocking
 const foo = require('../foo');
 
@@ -225,7 +264,7 @@ const otherObj = {
 
 ## Mock Names
 
-You can optionally provide a name for your mock functions, which will be displayed instead of "jest.fn()" in the test error output. Use this if you want to be able to quickly identify the mock function reporting an error in your test output.
+You can optionally provide a name for your mock functions, which will be displayed instead of `'jest.fn()'` in the test error output. Use [`.mockName()`](MockFunctionAPI.md/#mockfnmocknamename) if you want to be able to quickly identify the mock function reporting an error in your test output.
 
 ```javascript
 const myMockFn = jest

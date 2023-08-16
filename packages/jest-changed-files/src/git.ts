@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,21 +7,24 @@
  */
 
 import * as path from 'path';
+import {types} from 'util';
 import execa = require('execa');
-import type {Config} from '@jest/types';
 import type {SCMAdapter} from './types';
 
 const findChangedFilesUsingCommand = async (
   args: Array<string>,
-  cwd: Config.Path,
-): Promise<Array<Config.Path>> => {
+  cwd: string,
+): Promise<Array<string>> => {
   let result: execa.ExecaReturnValue;
 
   try {
     result = await execa('git', args, {cwd});
   } catch (e) {
-    // TODO: Should we keep the original `message`?
-    e.message = e.stderr;
+    if (types.isNativeError(e)) {
+      const err = e as execa.ExecaError;
+      // TODO: Should we keep the original `message`?
+      err.message = err.stderr;
+    }
 
     throw e;
   }
@@ -34,15 +37,14 @@ const findChangedFilesUsingCommand = async (
 
 const adapter: SCMAdapter = {
   findChangedFiles: async (cwd, options) => {
-    const changedSince: string | undefined =
-      options && (options.withAncestor ? 'HEAD^' : options.changedSince);
+    const changedSince =
+      options.withAncestor === true ? 'HEAD^' : options.changedSince;
 
-    const includePaths: Array<Config.Path> = (
-      (options && options.includePaths) ||
-      []
-    ).map(absoluteRoot => path.normalize(path.relative(cwd, absoluteRoot)));
+    const includePaths = (options.includePaths ?? []).map(absoluteRoot =>
+      path.normalize(path.relative(cwd, absoluteRoot)),
+    );
 
-    if (options && options.lastCommit) {
+    if (options.lastCommit === true) {
       return findChangedFilesUsingCommand(
         ['show', '--name-only', '--pretty=format:', 'HEAD', '--'].concat(
           includePaths,
@@ -50,7 +52,7 @@ const adapter: SCMAdapter = {
         cwd,
       );
     }
-    if (changedSince) {
+    if (changedSince != null && changedSince.length > 0) {
       const [committed, staged, unstaged] = await Promise.all([
         findChangedFilesUsingCommand(
           ['diff', '--name-only', `${changedSince}...HEAD`, '--'].concat(

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,16 +8,16 @@
 import chalk = require('chalk');
 import {KEYS} from 'jest-watcher';
 
-export default (
+export default function handleDeprecationWarnings(
   pipe: NodeJS.WriteStream,
   stdin: NodeJS.ReadStream = process.stdin,
-): Promise<void> =>
-  new Promise((resolve, reject) => {
+): Promise<void> {
+  return new Promise((resolve, reject) => {
     if (typeof stdin.setRawMode === 'function') {
       const messages = [
         chalk.red('There are deprecation warnings.\n'),
-        chalk.dim(' \u203A Press ') + 'Enter' + chalk.dim(' to continue.'),
-        chalk.dim(' \u203A Press ') + 'Esc' + chalk.dim(' to exit.'),
+        `${chalk.dim(' \u203A Press ')}Enter${chalk.dim(' to continue.')}`,
+        `${chalk.dim(' \u203A Press ')}Esc${chalk.dim(' to exit.')}`,
       ];
 
       pipe.write(messages.join('\n'));
@@ -39,3 +39,4 @@ export default (
       resolve();
     }
   });
+}

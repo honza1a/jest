@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -15,7 +15,7 @@ class QuitPlugin extends BaseWatchPlugin {
     this.isInternal = true;
   }
 
-  async run(): Promise<void> {
+  override async run(): Promise<void> {
     if (typeof this._stdin.setRawMode === 'function') {
       this._stdin.setRawMode(false);
     }
@@ -23,7 +23,7 @@ class QuitPlugin extends BaseWatchPlugin {
     process.exit(0);
   }
 
-  getUsageInfo(): UsageData {
+  override getUsageInfo(): UsageData {
     return {
       key: 'q',
       prompt: 'quit watch mode',

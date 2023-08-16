@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,7 +7,7 @@
  */
 // This file is a heavily modified fork of Jasmine. Original license:
 /*
-Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+Copyright (c) 2008-2016 Pivotal Labs
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -40,17 +40,17 @@ export default class ReportDispatcher implements Reporter {
   provideFallbackReporter: (reporter: Reporter) => void;
   clearReporters: () => void;
 
-  // @ts-expect-error
+  // @ts-expect-error: confused by loop in ctor
   jasmineDone: (runDetails: RunDetails) => void;
-  // @ts-expect-error
+  // @ts-expect-error: confused by loop in ctor
   jasmineStarted: (runDetails: RunDetails) => void;
-  // @ts-expect-error
+  // @ts-expect-error: confused by loop in ctor
   specDone: (result: SpecResult) => void;
-  // @ts-expect-error
+  // @ts-expect-error: confused by loop in ctor
   specStarted: (spec: SpecResult) => void;
-  // @ts-expect-error
+  // @ts-expect-error: confused by loop in ctor
   suiteDone: (result: SuiteResult) => void;
-  // @ts-expect-error
+  // @ts-expect-error: confused by loop in ctor
   suiteStarted: (result: SuiteResult) => void;
 
   constructor(methods: Array<keyof Reporter>) {
@@ -89,7 +89,7 @@ export default class ReportDispatcher implements Reporter {
       for (let i = 0; i < reporters.length; i++) {
         const reporter = reporters[i];
         if (reporter[method]) {
-          // @ts-expect-error
+          // @ts-expect-error: wrong context
           reporter[method].apply(reporter, args);
         }
       }

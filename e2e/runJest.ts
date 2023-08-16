@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,16 +8,19 @@
 
 import * as path from 'path';
 import {Writable} from 'stream';
+import dedent from 'dedent';
 import execa = require('execa');
 import * as fs from 'graceful-fs';
 import stripAnsi = require('strip-ansi');
 import type {FormattedTestResults} from '@jest/test-result';
+import {normalizeIcons} from '@jest/test-utils';
 import type {Config} from '@jest/types';
-import {normalizeIcons} from './Utils';
+import {ErrorWithStack} from 'jest-util';
 
 const JEST_PATH = path.resolve(__dirname, '../packages/jest-cli/bin/jest.js');
 
 type RunJestOptions = {
+  keepTrailingNewline?: boolean; // keep final newline in output from stdout and stderr
   nodeOptions?: string;
   nodePath?: string;
   skipPkgJsonCheck?: boolean; // don't complain if can't find package.json
@@ -34,7 +37,17 @@ export default function runJest(
   args?: Array<string>,
   options: RunJestOptions = {},
 ): RunJestResult {
-  return normalizeStdoutAndStderr(spawnJest(dir, args, options), options);
+  const result = spawnJest(dir, args, options);
+
+  if (result.killed) {
+    throw new Error(dedent`
+      Spawned process was killed.
+      DETAILS:
+        ${JSON.stringify(result, null, 2)}
+    `);
+  }
+
+  return normalizeStdoutAndStderrOnResult(result, options);
 }
 
 function spawnJest(
@@ -55,7 +68,7 @@ function spawnJest(
   dir: string,
   args: Array<string> = [],
   options: RunJestOptions = {},
-  spawnAsync: boolean = false,
+  spawnAsync = false,
 ): execa.ExecaSyncReturnValue | execa.ExecaChildProcess {
   const isRelative = !path.isAbsolute(dir);
 
@@ -65,14 +78,11 @@ function spawnJest(
 
   const localPackageJson = path.resolve(dir, 'package.json');
   if (!options.skipPkgJsonCheck && !fs.existsSync(localPackageJson)) {
-    throw new Error(
-      `
+    throw new Error(dedent`
       Make sure you have a local package.json file at
         "${localPackageJson}".
-      Otherwise Jest will try to traverse the directory tree and find the
-      global package.json, which will send Jest into infinite loop.
-    `,
-    );
+      Otherwise Jest will try to traverse the directory tree and find the global package.json, which will send Jest into infinite loop.
+    `);
   }
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -88,6 +98,7 @@ function spawnJest(
     cwd: dir,
     env,
     reject: false,
+    stripFinalNewline: !options.keepTrailingNewline,
     timeout: options.timeout || 0,
   };
 
@@ -104,16 +115,24 @@ export interface RunJestJsonResult extends RunJestResult {
   json: FormattedTestResults;
 }
 
-function normalizeStdoutAndStderr(
+function normalizeStreamString(
+  stream: string,
+  options: RunJestOptions,
+): string {
+  if (options.stripAnsi) stream = stripAnsi(stream);
+  stream = normalizeIcons(stream);
+
+  return stream;
+}
+
+function normalizeStdoutAndStderrOnResult(
   result: RunJestResult,
   options: RunJestOptions,
 ): RunJestResult {
-  if (options.stripAnsi) result.stdout = stripAnsi(result.stdout);
-  result.stdout = normalizeIcons(result.stdout);
-  if (options.stripAnsi) result.stderr = stripAnsi(result.stderr);
-  result.stderr = normalizeIcons(result.stderr);
+  const stdout = normalizeStreamString(result.stdout, options);
+  const stderr = normalizeStreamString(result.stderr, options);
 
-  return result;
+  return {...result, stderr, stdout};
 }
 
 // Runs `jest` with `--json` option and adds `json` property to the result obj.
@@ -130,24 +149,23 @@ export const json = function (
   try {
     return {
       ...result,
-      json: JSON.parse(result.stdout || ''),
+      json: JSON.parse(result.stdout),
     };
-  } catch (e) {
-    throw new Error(
-      `
+  } catch (e: any) {
+    throw new Error(dedent`
       Can't parse JSON.
       ERROR: ${e.name} ${e.message}
       STDOUT: ${result.stdout}
       STDERR: ${result.stderr}
-    `,
-    );
+    `);
   }
 };
 
 type StdErrAndOutString = {stderr: string; stdout: string};
 type ConditionFunction = (arg: StdErrAndOutString) => boolean;
+type CheckerFunction = (arg: StdErrAndOutString) => void;
 
-// Runs `jest` continously (watch mode) and allows the caller to wait for
+// Runs `jest` continuously (watch mode) and allows the caller to wait for
 // conditions on stdout and stderr and to end the process.
 export const runContinuous = function (
   dir: string,
@@ -158,7 +176,21 @@ export const runContinuous = function (
 
   let stderr = '';
   let stdout = '';
-  const pending = new Set<(arg: StdErrAndOutString) => void>();
+  const pending = new Set<CheckerFunction>();
+  const pendingRejection = new WeakMap<CheckerFunction, () => void>();
+
+  jestPromise.addListener('exit', () => {
+    for (const fn of pending) {
+      const reject = pendingRejection.get(fn);
+
+      if (reject) {
+        console.log('stdout', normalizeStreamString(stdout, options));
+        console.log('stderr', normalizeStreamString(stderr, options));
+
+        reject();
+      }
+    }
+  });
 
   const dispatch = () => {
     for (const fn of pending) {
@@ -186,7 +218,7 @@ export const runContinuous = function (
     }),
   );
 
-  return {
+  const continuousRun = {
     async end() {
       jestPromise.kill();
 
@@ -196,7 +228,7 @@ export const runContinuous = function (
       result.stdout = stdout;
       result.stderr = stderr;
 
-      return normalizeStdoutAndStderr(result, options);
+      return normalizeStdoutAndStderrOnResult(result, options);
     },
 
     getCurrentOutput(): StdErrAndOutString {
@@ -208,17 +240,25 @@ export const runContinuous = function (
     },
 
     async waitUntil(fn: ConditionFunction) {
-      await new Promise<void>(resolve => {
-        const check = (state: StdErrAndOutString) => {
+      await new Promise<void>((resolve, reject) => {
+        const check: CheckerFunction = state => {
           if (fn(state)) {
             pending.delete(check);
+            pendingRejection.delete(check);
             resolve();
           }
         };
+        const error = new ErrorWithStack(
+          'Process exited',
+          continuousRun.waitUntil,
+        );
+        pendingRejection.set(check, () => reject(error));
         pending.add(check);
       });
     },
   };
+
+  return continuousRun;
 };
 
 // return type matches output of logDebugMessages
@@ -231,13 +271,18 @@ export function getConfig(
   configs: Array<Config.ProjectConfig>;
   version: string;
 } {
-  const {exitCode, stdout} = runJest(
+  const {exitCode, stdout, stderr} = runJest(
     dir,
     args.concat('--show-config'),
     options,
   );
 
-  expect(exitCode).toBe(0);
+  try {
+    expect(exitCode).toBe(0);
+  } catch (error) {
+    console.error('Exit code is not 0', {stderr, stdout});
+    throw error;
+  }
 
   return JSON.parse(stdout);
 }

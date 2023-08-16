@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -13,14 +13,14 @@ import {NO_DIFF_MESSAGE} from '../constants';
 import {diffLinesUnified, diffLinesUnified2} from '../diffLines';
 import {noColor} from '../normalizeDiffOptions';
 import {diffStringsUnified} from '../printDiffs';
-import {DiffOptions} from '../types';
+import type {DiffOptions} from '../types';
 
 const optionsCounts: DiffOptions = {
   includeChangeCounts: true,
 };
 
 // Use only in toBe assertions for edge case messages.
-const stripped = (a: unknown, b: unknown) => stripAnsi(diff(a, b) || '');
+const stripped = (a: unknown, b: unknown) => stripAnsi(diff(a, b) ?? '');
 
 // Use in toBe assertions for comparison lines.
 const optionsBe: DiffOptions = {
@@ -62,7 +62,7 @@ describe('different types', () => {
     test(`'${String(a)}' and '${String(b)}'`, () => {
       expect(stripped(a, b)).toBe(
         '  Comparing two different types of values. ' +
-          `Expected ${typeA} but received ${typeB}.`,
+          `Expected ${String(typeA)} but received ${String(typeB)}.`,
       );
     });
   });
@@ -665,7 +665,7 @@ describe('outer React element (non-snapshot)', () => {
 
 describe('trailing newline in multiline string not enclosed in quotes', () => {
   const a = ['line 1', 'line 2', 'line 3'].join('\n');
-  const b = a + '\n';
+  const b = `${a}\n`;
 
   describe('from less to more', () => {
     const expected = ['  line 1', '  line 2', '  line 3', '+'].join('\n');
@@ -851,7 +851,7 @@ describe('diffLinesUnified2 edge cases', () => {
     test('a', () => {
       const aDisplay = 'MiXeD cAsE';
       const bDisplay = 'Mixed case\nUPPER CASE';
-      const aCompare = aDisplay.toLowerCase() + '\nlower case';
+      const aCompare = `${aDisplay.toLowerCase()}\nlower case`;
       const bCompare = bDisplay.toLowerCase();
 
       const received = diffLinesUnified2(
@@ -1077,7 +1077,8 @@ describe('options', () => {
     });
 
     test('diff middle dot', () => {
-      const replaceSpacesWithMiddleDot = string => '·'.repeat(string.length);
+      const replaceSpacesWithMiddleDot = (string: string) =>
+        '·'.repeat(string.length);
       const options = {
         changeLineTrailingSpaceColor: replaceSpacesWithMiddleDot,
         commonLineTrailingSpaceColor: replaceSpacesWithMiddleDot,
@@ -1118,6 +1119,45 @@ describe('options', () => {
 
     test('diffStringsUnified', () => {
       expect(diffStringsUnified(aEmpty, bEmpty, options)).toBe(expected);
+    });
+  });
+
+  describe('compare keys', () => {
+    const a = {a: {d: 1, e: 1, f: 1}, b: 1, c: 1};
+    const b = {a: {d: 1, e: 2, f: 1}, b: 1, c: 1};
+
+    test('keeps the object keys in their original order', () => {
+      const compareKeys = () => 0;
+      const expected = [
+        '  Object {',
+        '    "a": Object {',
+        '      "d": 1,',
+        '-     "e": 1,',
+        '+     "e": 2,',
+        '      "f": 1,',
+        '    },',
+        '    "b": 1,',
+        '    "c": 1,',
+        '  }',
+      ].join('\n');
+      expect(diff(a, b, {...optionsBe, compareKeys})).toBe(expected);
+    });
+
+    test('sorts the object keys in reverse order', () => {
+      const compareKeys = (a: string, b: string) => (a > b ? -1 : 1);
+      const expected = [
+        '  Object {',
+        '    "c": 1,',
+        '    "b": 1,',
+        '    "a": Object {',
+        '      "f": 1,',
+        '-     "e": 1,',
+        '+     "e": 2,',
+        '      "d": 1,',
+        '    },',
+        '  }',
+      ].join('\n');
+      expect(diff(a, b, {...optionsBe, compareKeys})).toBe(expected);
     });
   });
 });

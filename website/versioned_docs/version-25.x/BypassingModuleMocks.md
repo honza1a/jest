@@ -7,12 +7,11 @@ Jest allows you to mock out whole modules in your tests, which can be useful for
 
 Consider writing a test case for this `createUser` function:
 
-```javascript
-// createUser.js
+```javascript title="createUser.js"
 import fetch from 'node-fetch';
 
 export const createUser = async () => {
-  const response = await fetch('http://website.com/users', {method: 'POST'});
+  const response = await fetch('https://website.com/users', {method: 'POST'});
   const userId = await response.text();
   return userId;
 };
@@ -32,7 +31,7 @@ test('createUser calls fetch with the right args and returns the user id', async
   const userId = await createUser();
 
   expect(fetch).toHaveBeenCalledTimes(1);
-  expect(fetch).toHaveBeenCalledWith('http://website.com/users', {
+  expect(fetch).toHaveBeenCalledWith('https://website.com/users', {
     method: 'POST',
   });
   expect(userId).toBe('4');

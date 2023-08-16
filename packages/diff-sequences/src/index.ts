@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -779,12 +779,12 @@ const validateCallback = (name: string, arg: unknown) => {
 // Given lengths of sequences and input function to compare items at indexes,
 // return by output function the number of adjacent items and starting indexes
 // of each common subsequence.
-export default (
+export default function diffSequence(
   aLength: number,
   bLength: number,
   isCommon: IsCommon,
   foundSubsequence: FoundSubsequence,
-): void => {
+): void {
   validateLength('aLength', aLength);
   validateLength('bLength', bLength);
   validateCallback('isCommon', isCommon);
@@ -869,4 +869,4 @@ export default (
       foundSubsequence(nCommonR, aEnd, bEnd);
     }
   }
-};
+}

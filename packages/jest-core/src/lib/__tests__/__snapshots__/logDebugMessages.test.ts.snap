@@ -1,32 +1,39 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`prints the config object 1`] = `
-{
+"{
   "configs": {
     "automock": false,
     "cache": false,
     "cacheDirectory": "/test_cache_dir/",
     "clearMocks": false,
+    "collectCoverageFrom": [
+      "src",
+      "!public"
+    ],
+    "coverageDirectory": "coverage",
     "coveragePathIgnorePatterns": [],
     "cwd": "/test_root_dir/",
     "detectLeaks": false,
     "detectOpenHandles": false,
     "errorOnDeprecated": false,
     "extensionsToTreatAsEsm": [],
-    "extraGlobals": [],
+    "fakeTimers": {
+      "enableGlobally": false
+    },
     "forceCoverageMatch": [],
     "globals": {},
     "haste": {},
+    "id": "test_name",
     "injectGlobals": true,
     "moduleDirectories": [],
     "moduleFileExtensions": [
       "js"
     ],
-    "moduleLoader": "/test_module_loader_path",
     "moduleNameMapper": [],
     "modulePathIgnorePatterns": [],
     "modulePaths": [],
-    "name": "test_name",
+    "openHandlesTimeout": 1000,
     "prettierPath": "prettier",
     "resetMocks": false,
     "resetModules": false,
@@ -36,11 +43,14 @@ exports[`prints the config object 1`] = `
       "path/to/dir/test"
     ],
     "runner": "jest-runner",
+    "runtime": "/test_module_loader_path",
+    "sandboxInjectedGlobals": [],
     "setupFiles": [],
     "setupFilesAfterEnv": [],
     "skipFilter": false,
     "skipNodeResolution": false,
     "slowTestThreshold": 5,
+    "snapshotFormat": {},
     "snapshotSerializers": [],
     "testEnvironment": "node",
     "testEnvironmentOptions": {},
@@ -51,8 +61,6 @@ exports[`prints the config object 1`] = `
       "\\\\.test\\\\.js$"
     ],
     "testRunner": "myRunner",
-    "testURL": "http://localhost",
-    "timers": "real",
     "transform": [],
     "transformIgnorePatterns": [],
     "watchPathIgnorePatterns": []
@@ -61,6 +69,7 @@ exports[`prints the config object 1`] = `
     "bail": 0,
     "changedFilesWithAncestor": false,
     "changedSince": "",
+    "ci": false,
     "collectCoverage": false,
     "collectCoverageFrom": [],
     "coverageDirectory": "coverage",
@@ -87,13 +96,16 @@ exports[`prints the config object 1`] = `
     "notifyMode": "failure-change",
     "onlyChanged": false,
     "onlyFailures": false,
+    "openHandlesTimeout": 1000,
     "passWithNoTests": false,
     "projects": [],
     "reporters": [],
     "rootDir": "/test_root_dir/",
     "runTestsByPath": false,
+    "seed": 1234,
     "silent": false,
     "skipFilter": false,
+    "snapshotFormat": {},
     "testFailureExitCode": 1,
     "testNamePattern": "",
     "testPathPattern": "",
@@ -109,5 +121,5 @@ exports[`prints the config object 1`] = `
   },
   "version": 123
 }
-
+"
 `;

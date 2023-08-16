@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -15,10 +15,11 @@ export default function getNoTestFoundFailed(
   let msg = chalk.bold('No failed test found.');
   if (isInteractive) {
     msg += chalk.dim(
-      '\n' +
-        (globalConfig.watch
+      `\n${
+        globalConfig.watch
           ? 'Press `f` to quit "only failed tests" mode.'
-          : 'Run Jest without `--onlyFailures` or with `--all` to run all tests.'),
+          : 'Run Jest without `--onlyFailures` or with `--all` to run all tests.'
+      }`,
     );
   }
   return msg;

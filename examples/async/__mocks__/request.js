@@ -1,4 +1,4 @@
-// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 
 'use strict';
 
@@ -14,7 +14,7 @@ export default function request(url) {
       users[userID]
         ? resolve(users[userID])
         : reject({
-            error: 'User with ' + userID + ' not found.',
+            error: `User with ${userID} not found.`,
           }),
     );
   });

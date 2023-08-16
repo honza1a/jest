@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -18,13 +18,9 @@ export function setupLandingAnimation() {
   const cards = hand.querySelectorAll('.jest-card');
 
   function cardTransform(offset, handWidth) {
-    const transform =
-      'rotate(' +
-      offset * 4 +
-      'deg) translateX(' +
-      (offset - (Math.abs(offset) * offset) / 7) *
-        Math.min(140, handWidth / 8) +
-      'px)';
+    const transform = `rotate(${offset * 4}deg) translateX(${
+      (offset - (Math.abs(offset) * offset) / 7) * Math.min(140, handWidth / 8)
+    }px)`;
     return transform;
   }
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,10 +7,9 @@
 
 import {tmpdir} from 'os';
 import * as path from 'path';
-import type {Config} from '@jest/types';
 import {tryRealpath} from 'jest-util';
 
-const getCacheDirectory: () => Config.Path = () => {
+const getCacheDirectory: () => string = () => {
   const {getuid} = process;
   const tmpdirPath = path.join(tryRealpath(tmpdir()), 'jest');
   if (getuid == null) {

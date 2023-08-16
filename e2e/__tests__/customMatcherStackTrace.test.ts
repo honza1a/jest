@@ -1,11 +1,10 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
-import {wrap} from 'jest-snapshot-serializer-raw';
 import {extractSummary} from '../Utils';
 import runJest from '../runJest';
 
@@ -19,7 +18,7 @@ test('works with custom matchers', () => {
     .filter(line => line.indexOf('at Error (native)') < 0)
     .join('\n');
 
-  expect(wrap(rest)).toMatchSnapshot();
+  expect(rest).toMatchSnapshot();
 });
 
 test('custom async matchers', () => {
@@ -29,5 +28,5 @@ test('custom async matchers', () => {
 
   const {rest} = extractSummary(stderr);
 
-  expect(wrap(rest)).toMatchSnapshot();
+  expect(rest).toMatchSnapshot();
 });

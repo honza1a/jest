@@ -1,20 +1,20 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-
-/* eslint-disable local/ban-types-eventually */
 
 import type {Reporter, ReporterOnStartOptions} from '@jest/reporters';
 import type {
   AggregatedResult,
   Test,
   TestCaseResult,
+  TestContext,
   TestResult,
 } from '@jest/test-result';
-import type {Context} from 'jest-runtime';
+import type {Circus} from '@jest/types';
+import type {ReporterConstructor} from './TestScheduler';
 
 export default class ReporterDispatcher {
   private _reporters: Array<Reporter>;
@@ -27,9 +27,9 @@ export default class ReporterDispatcher {
     this._reporters.push(reporter);
   }
 
-  unregister(ReporterClass: Function): void {
+  unregister(reporterConstructor: ReporterConstructor): void {
     this._reporters = this._reporters.filter(
-      reporter => !(reporter instanceof ReporterClass),
+      reporter => !(reporter instanceof reporterConstructor),
     );
   }
 
@@ -70,6 +70,17 @@ export default class ReporterDispatcher {
     }
   }
 
+  async onTestCaseStart(
+    test: Test,
+    testCaseStartInfo: Circus.TestCaseStartInfo,
+  ): Promise<void> {
+    for (const reporter of this._reporters) {
+      if (reporter.onTestCaseStart) {
+        await reporter.onTestCaseStart(test, testCaseStartInfo);
+      }
+    }
+  }
+
   async onTestCaseResult(
     test: Test,
     testCaseResult: TestCaseResult,
@@ -82,12 +93,12 @@ export default class ReporterDispatcher {
   }
 
   async onRunComplete(
-    contexts: Set<Context>,
+    testContexts: Set<TestContext>,
     results: AggregatedResult,
   ): Promise<void> {
     for (const reporter of this._reporters) {
       if (reporter.onRunComplete) {
-        await reporter.onRunComplete(contexts, results);
+        await reporter.onRunComplete(testContexts, results);
       }
     }
   }

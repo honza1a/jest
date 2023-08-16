@@ -1,9 +1,11 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+
+import type {SnapshotFormat} from '@jest/schemas';
 
 export type Colors = {
   comment: {close: string; open: string};
@@ -16,57 +18,35 @@ type Indent = (arg0: string) => string;
 export type Refs = Array<unknown>;
 type Print = (arg0: unknown) => string;
 
-export type Theme = {
-  comment: string;
-  content: string;
-  prop: string;
-  tag: string;
-  value: string;
-};
+export type Theme = Options['theme'];
 
-type ThemeReceived = {
-  comment?: string;
-  content?: string;
-  prop?: string;
-  tag?: string;
-  value?: string;
-};
+export type CompareKeys = ((a: string, b: string) => number) | null | undefined;
 
-export type Options = {
-  callToJSON: boolean;
-  escapeRegex: boolean;
-  escapeString: boolean;
-  highlight: boolean;
-  indent: number;
-  maxDepth: number;
-  min: boolean;
-  plugins: Plugins;
-  printBasicPrototype: boolean;
-  printFunctionName: boolean;
-  theme: Theme;
-};
+type RequiredOptions = Required<PrettyFormatOptions>;
 
-export type OptionsReceived = {
-  callToJSON?: boolean;
-  escapeRegex?: boolean;
-  escapeString?: boolean;
-  highlight?: boolean;
-  indent?: number;
-  maxDepth?: number;
-  min?: boolean;
+export interface Options
+  extends Omit<RequiredOptions, 'compareKeys' | 'theme'> {
+  compareKeys: CompareKeys;
+  theme: Required<RequiredOptions['theme']>;
+}
+
+export interface PrettyFormatOptions
+  extends Omit<SnapshotFormat, 'compareKeys'> {
+  compareKeys?: CompareKeys;
   plugins?: Plugins;
-  printBasicPrototype?: boolean;
-  printFunctionName?: boolean;
-  theme?: ThemeReceived;
-};
+}
+
+export type OptionsReceived = PrettyFormatOptions;
 
 export type Config = {
   callToJSON: boolean;
+  compareKeys: CompareKeys;
   colors: Colors;
   escapeRegex: boolean;
   escapeString: boolean;
   indent: string;
   maxDepth: number;
+  maxWidth: number;
   min: boolean;
   plugins: Plugins;
   printBasicPrototype: boolean;

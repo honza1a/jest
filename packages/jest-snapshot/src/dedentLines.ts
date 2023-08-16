@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -31,7 +31,7 @@ const hasUnmatchedDoubleQuoteMarks = (string: string): boolean => {
   return n % 2 !== 0;
 };
 
-const isFirstLineOfTag = (line: string) => /^( {2})*\</.test(line);
+const isFirstLineOfTag = (line: string) => /^( {2})*</.test(line);
 
 // The length of the output array is the index of the next input line.
 

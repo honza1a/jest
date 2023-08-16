@@ -5,15 +5,25 @@ title: The Jest Object
 
 The `jest` object is automatically in scope within every test file. The methods in the `jest` object help create mocks and let you control Jest's overall behavior. It can also be imported explicitly by via `import {jest} from '@jest/globals'`.
 
+## Methods
+
+import TOCInline from '@theme/TOCInline';
+
+<TOCInline toc={toc.slice(1)} />
+
+---
+
 ## Mock Modules
 
 ### `jest.disableAutomock()`
 
 Disables automatic mocking in the module loader.
 
-> See `automock` section of [configuration](Configuration.md#automock-boolean) for more information
+:::info
 
-After this method is called, all `require()`s will return the real versions of each module (rather than a mocked version).
+Automatic mocking should be enabled via [`automock`](Configuration.md#automock-boolean) configuration option for this method to have any effect. Also see documentation of the configuration option for more details.
+
+:::
 
 Jest configuration:
 
@@ -25,8 +35,7 @@ Jest configuration:
 
 Example:
 
-```js
-// utils.js
+```js title="utils.js"
 export default {
   authorize: () => {
     return 'token';
@@ -34,8 +43,7 @@ export default {
 };
 ```
 
-```js
-// __tests__/disableAutomocking.js
+```js title="__tests__/disableAutomocking.js"
 import utils from '../utils';
 
 jest.disableAutomock();
@@ -49,24 +57,29 @@ test('original implementation', () => {
 
 This is usually useful when you have a scenario where the number of dependencies you want to mock is far less than the number of dependencies that you don't. For example, if you're writing a test for a module that uses a large number of dependencies that can be reasonably classified as "implementation details" of the module, then you likely do not want to mock them.
 
-Examples of dependencies that might be considered "implementation details" are things ranging from language built-ins (e.g. Array.prototype methods) to highly common utility methods (e.g. underscore/lo-dash, array utilities, etc) and entire libraries like React.js.
+Examples of dependencies that might be considered "implementation details" are things ranging from language built-ins (e.g. `Array.prototype` methods) to highly common utility methods (e.g. `underscore`, `lodash`, array utilities, etc) and entire libraries like `React.js`.
 
 Returns the `jest` object for chaining.
 
-_Note: this method was previously called `autoMockOff`. When using `babel-jest`, calls to `disableAutomock` will automatically be hoisted to the top of the code block. Use `autoMockOff` if you want to explicitly avoid this behavior._
+:::tip
+
+When using `babel-jest`, calls to `disableAutomock()` will automatically be hoisted to the top of the code block. Use `autoMockOff()` if you want to explicitly avoid this behavior.
+
+:::
 
 ### `jest.enableAutomock()`
 
 Enables automatic mocking in the module loader.
 
-Returns the `jest` object for chaining.
+:::info
 
-> See `automock` section of [configuration](Configuration.md#automock-boolean) for more information
+For more details on automatic mocking see documentation of [`automock`](Configuration.md#automock-boolean) configuration option.
+
+:::
 
 Example:
 
-```js
-// utils.js
+```js title="utils.js"
 export default {
   authorize: () => {
     return 'token';
@@ -75,8 +88,7 @@ export default {
 };
 ```
 
-```js
-// __tests__/enableAutomocking.js
+```js title="__tests__/enableAutomocking.js"
 jest.enableAutomock();
 
 import utils from '../utils';
@@ -88,7 +100,13 @@ test('original implementation', () => {
 });
 ```
 
-_Note: this method was previously called `autoMockOn`. When using `babel-jest`, calls to `enableAutomock` will automatically be hoisted to the top of the code block. Use `autoMockOn` if you want to explicitly avoid this behavior._
+Returns the `jest` object for chaining.
+
+:::tip
+
+When using `babel-jest`, calls to `enableAutomock` will automatically be hoisted to the top of the code block. Use `autoMockOn` if you want to explicitly avoid this behavior.
+
+:::
 
 ### `jest.genMockFromModule(moduleName)`
 
@@ -98,9 +116,8 @@ This is useful when you want to create a [manual mock](ManualMocks.md) that exte
 
 Example:
 
-```js
-// utils.js
-export default {
+```js title="utils.js"
+module.exports = {
   authorize: () => {
     return 'token';
   },
@@ -108,14 +125,14 @@ export default {
 };
 ```
 
-```js
-// __tests__/genMockFromModule.test.js
-const utils = jest.genMockFromModule('../utils').default;
+```js title="__tests__/genMockFromModule.test.js"
+const utils = jest.genMockFromModule('../utils');
+
 utils.isAuthorized = jest.fn(secret => secret === 'not wizard');
 
 test('implementation created by jest.genMockFromModule', () => {
-  expect(utils.authorize.mock).toBeTruthy();
-  expect(utils.isAuthorized('not wizard')).toEqual(true);
+  expect(jest.isMockFunction(utils.authorize)).toBe(true);
+  expect(utils.isAuthorized('not wizard')).toBe(true);
 });
 ```
 
@@ -123,7 +140,7 @@ This is how `genMockFromModule` will mock the following data types:
 
 #### `Function`
 
-Creates a new [mock function](MockFunctions.md). The new function has no formal parameters and when called will return `undefined`. This functionality also applies to `async` functions.
+Creates a new [mock function](MockFunctionAPI.md). The new function has no formal parameters and when called will return `undefined`. This functionality also applies to `async` functions.
 
 #### `Class`
 
@@ -143,8 +160,7 @@ Creates a new property with the same primitive value as the original property.
 
 Example:
 
-```js
-// example.js
+```js title="example.js"
 module.exports = {
   function: function square(a, b) {
     return a * b;
@@ -174,23 +190,22 @@ module.exports = {
 };
 ```
 
-```js
-// __tests__/example.test.js
-const example = jest.genMockFromModule('./example');
+```js title="__tests__/example.test.js"
+const example = jest.genMockFromModule('../example');
 
 test('should run example code', () => {
   // creates a new mocked function with no formal arguments.
-  expect(example.function.name).toEqual('square');
-  expect(example.function.length).toEqual(0);
+  expect(example.function.name).toBe('square');
+  expect(example.function).toHaveLength(0);
 
   // async functions get the same treatment as standard synchronous functions.
-  expect(example.asyncFunction.name).toEqual('asyncSquare');
-  expect(example.asyncFunction.length).toEqual(0);
+  expect(example.asyncFunction.name).toBe('asyncSquare');
+  expect(example.asyncFunction).toHaveLength(0);
 
   // creates a new class with the same interface, member functions and properties are mocked.
-  expect(example.class.constructor.name).toEqual('Bar');
-  expect(example.class.foo.name).toEqual('foo');
-  expect(example.class.array.length).toEqual(0);
+  expect(example.class.constructor.name).toBe('Bar');
+  expect(example.class.foo.name).toBe('foo');
+  expect(example.class.array).toHaveLength(0);
 
   // creates a deeply cloned version of the original object.
   expect(example.object).toEqual({
@@ -202,12 +217,12 @@ test('should run example code', () => {
   });
 
   // creates a new empty array, ignoring the original array.
-  expect(example.array.length).toEqual(0);
+  expect(example.array).toHaveLength(0);
 
   // creates a new property with the same primitive value as the original property.
-  expect(example.number).toEqual(123);
-  expect(example.string).toEqual('baz');
-  expect(example.boolean).toEqual(true);
+  expect(example.number).toBe(123);
+  expect(example.string).toBe('baz');
+  expect(example.boolean).toBe(true);
   expect(example.symbol).toEqual(Symbol.for('a.b.c'));
 });
 ```
@@ -216,11 +231,11 @@ test('should run example code', () => {
 
 Mocks a module with an auto-mocked version when it is being required. `factory` and `options` are optional. For example:
 
-```js
-// banana.js
+```js title="banana.js"
 module.exports = () => 'banana';
+```
 
-// __tests__/test.js
+```js title="__tests__/test.js"
 jest.mock('../banana');
 
 const banana = require('../banana'); // banana will be explicitly mocked.
@@ -272,7 +287,11 @@ jest.mock(
 );
 ```
 
-> **Warning:** Importing a module in a setup file (as specified by `setupTestFrameworkScriptFile`) will prevent mocking for the module in question, as well as all the modules that it imports.
+:::caution
+
+Importing a module in a setup file (as specified by [`setupFilesAfterEnv`](Configuration.md#setupfilesafterenv-array)) will prevent mocking for the module in question, as well as all the modules that it imports.
+
+:::
 
 Modules that are mocked with `jest.mock` are mocked only for the file that calls `jest.mock`. Another file that imports the module will get the original implementation even if it runs after the test file that mocks the module.
 
@@ -283,6 +302,12 @@ Returns the `jest` object for chaining.
 Indicates that the module system should never return a mocked version of the specified module from `require()` (e.g. that it should always return the real module).
 
 The most common use of this API is for specifying the module a given test intends to be testing (and thus doesn't want automatically mocked).
+
+Returns the `jest` object for chaining.
+
+### `jest.deepUnmock(moduleName)`
+
+Indicates that the module system should never return a mocked version of the specified module and its dependencies.
 
 Returns the `jest` object for chaining.
 
@@ -302,7 +327,7 @@ test('moduleName 1', () => {
     return jest.fn(() => 1);
   });
   const moduleName = require('../moduleName');
-  expect(moduleName()).toEqual(1);
+  expect(moduleName()).toBe(1);
 });
 
 test('moduleName 2', () => {
@@ -310,7 +335,7 @@ test('moduleName 2', () => {
     return jest.fn(() => 2);
   });
   const moduleName = require('../moduleName');
-  expect(moduleName()).toEqual(2);
+  expect(moduleName()).toBe(2);
 });
 ```
 
@@ -334,8 +359,8 @@ test('moduleName 1', () => {
     };
   });
   return import('../moduleName').then(moduleName => {
-    expect(moduleName.default).toEqual('default1');
-    expect(moduleName.foo).toEqual('foo1');
+    expect(moduleName.default).toBe('default1');
+    expect(moduleName.foo).toBe('foo1');
   });
 });
 
@@ -348,8 +373,8 @@ test('moduleName 2', () => {
     };
   });
   return import('../moduleName').then(moduleName => {
-    expect(moduleName.default).toEqual('default2');
-    expect(moduleName.foo).toEqual('foo2');
+    expect(moduleName.default).toBe('default2');
+    expect(moduleName.foo).toBe('foo2');
   });
 });
 ```
@@ -372,7 +397,11 @@ In these rare scenarios you can use this API to manually fill the slot in the mo
 
 Returns the `jest` object for chaining.
 
-_Note It is recommended to use [`jest.mock()`](#jestmockmodulename-factory-options) instead. The `jest.mock` API's second argument is a module factory instead of the expected exported module object._
+:::info
+
+It is recommended to use [`jest.mock()`](#jestmockmodulename-factory-options) instead. The `jest.mock` API's second argument is a module factory instead of the expected exported module object.
+
+:::
 
 ### `jest.requireActual(moduleName)`
 
@@ -447,9 +476,9 @@ jest.isolateModules(() => {
 const otherCopyOfMyModule = require('myModule');
 ```
 
-## Mock functions
+## Mock Functions
 
-### `jest.fn(implementation)`
+### `jest.fn(implementation?)`
 
 Returns a new, unused [mock function](MockFunctionAPI.md). Optionally takes a mock implementation.
 
@@ -471,7 +500,17 @@ Determines if the given function is a mocked function.
 
 Creates a mock function similar to `jest.fn` but also tracks calls to `object[methodName]`. Returns a Jest [mock function](MockFunctionAPI.md).
 
-_Note: By default, `jest.spyOn` also calls the **spied** method. This is different behavior from most other test libraries. If you want to overwrite the original function, you can use `jest.spyOn(object, methodName).mockImplementation(() => customImplementation)` or `object[methodName] = jest.fn(() => customImplementation);`_
+:::note
+
+By default, `jest.spyOn` also calls the **spied** method. This is different behavior from most other test libraries. If you want to overwrite the original function, you can use `jest.spyOn(object, methodName).mockImplementation(() => customImplementation)` or `object[methodName] = jest.fn(() => customImplementation);`
+
+:::
+
+:::tip
+
+Since `jest.spyOn` is a mock, you could restore the initial state by calling [`jest.restoreAllMocks`](#jestrestoreallmocks) in the body of the callback passed to the [afterEach](GlobalAPI.md#aftereachfn-timeout) hook.
+
+:::
 
 Example:
 
@@ -490,14 +529,17 @@ Example test:
 ```js
 const video = require('./video');
 
+afterEach(() => {
+  // restore the spy created with spyOn
+  jest.restoreAllMocks();
+});
+
 test('plays video', () => {
   const spy = jest.spyOn(video, 'play');
   const isPlaying = video.play();
 
   expect(spy).toHaveBeenCalled();
   expect(isPlaying).toBe(true);
-
-  spy.mockRestore();
 });
 ```
 
@@ -537,14 +579,17 @@ Example test:
 const audio = require('./audio');
 const video = require('./video');
 
+afterEach(() => {
+  // restore the spy created with spyOn
+  jest.restoreAllMocks();
+});
+
 test('plays video', () => {
   const spy = jest.spyOn(video, 'play', 'get'); // we pass 'get'
-  const isPlaying = video.play;
+  const isPlaying = video.play();
 
   expect(spy).toHaveBeenCalled();
   expect(isPlaying).toBe(true);
-
-  spy.mockRestore();
 });
 
 test('plays audio', () => {
@@ -553,14 +598,12 @@ test('plays audio', () => {
 
   expect(spy).toHaveBeenCalled();
   expect(audio.volume).toBe(100);
-
-  spy.mockRestore();
 });
 ```
 
 ### `jest.clearAllMocks()`
 
-Clears the `mock.calls` and `mock.instances` properties of all mocks. Equivalent to calling [`.mockClear()`](MockFunctionAPI.md#mockfnmockclear) on every mocked function.
+Clears the `mock.calls`, `mock.instances` and `mock.results` properties of all mocks. Equivalent to calling [`.mockClear()`](MockFunctionAPI.md#mockfnmockclear) on every mocked function.
 
 Returns the `jest` object for chaining.
 
@@ -574,7 +617,7 @@ Returns the `jest` object for chaining.
 
 Restores all mocks back to their original value. Equivalent to calling [`.mockRestore()`](MockFunctionAPI.md#mockfnmockrestore) on every mocked function. Beware that `jest.restoreAllMocks()` only works when the mock was created with `jest.spyOn`; other mocks will require you to manually restore them.
 
-## Mock timers
+## Mock Timers
 
 ### `jest.useFakeTimers()`
 
@@ -608,10 +651,6 @@ Exhausts all tasks queued by `setImmediate()`.
 
 ### `jest.advanceTimersByTime(msToRun)`
 
-##### renamed in Jest **22.0.0+**
-
-Also under the alias: `.runTimersToTime()`
-
 Executes only the macro task queue (i.e. all tasks queued by `setTimeout()` or `setInterval()` and `setImmediate()`).
 
 When this API is called, all timers are advanced by `msToRun` milliseconds. All pending "macro-tasks" that have been queued via `setTimeout()` or `setInterval()`, and would be executed within this time frame will be executed. Additionally, if those macro-tasks schedule new macro-tasks that would be executed within the same time frame, those will be executed until there are no more macro-tasks remaining in the queue, that should be run within `msToRun` milliseconds.
@@ -640,13 +679,35 @@ Returns the number of fake timers still left to run.
 
 ## Misc
 
+### `jest.retryTimes(numRetries, options?)`
+
+Runs failed tests n-times until they pass or until the max number of retries is exhausted.
+
+```js
+jest.retryTimes(3);
+
+test('will fail', () => {
+  expect(true).toBe(false);
+});
+```
+
+Returns the `jest` object for chaining.
+
+:::caution
+
+`jest.retryTimes()` must be declared at the top level of a test file or in a `describe` block.
+
+:::
+
+:::info
+
+This function is only available with the default [jest-circus](https://github.com/jestjs/jest/tree/main/packages/jest-circus) runner.
+
+:::
+
 ### `jest.setTimeout(timeout)`
 
-Set the default timeout interval for tests and before/after hooks in milliseconds. This only affects the test file from which this function is called.
-
-_Note: The default timeout interval is 5 seconds if this method is not called._
-
-_Note: If you want to set the timeout for all test files, a good place to do this is in `setupFilesAfterEnv`._
+Set the default timeout interval (in milliseconds) for all tests and before/after hooks in the test file. This only affects the test file from which this function is called. The default timeout interval is 5 seconds if this method is not called.
 
 Example:
 
@@ -654,17 +715,10 @@ Example:
 jest.setTimeout(1000); // 1 second
 ```
 
-### `jest.retryTimes()`
+:::tip
 
-Runs failed tests n-times until they pass or until the max number of retries is exhausted. This only works with [jest-circus](https://github.com/facebook/jest/tree/master/packages/jest-circus)!
+To set timeout intervals on different tests in the same file, use the [`timeout` option on each individual test](GlobalAPI.md#testname-fn-timeout).
 
-Example in a test:
+If you want to set the timeout for all test files, use [`testTimeout`](Configuration.md#testtimeout-number) configuration option.
 
-```js
-jest.retryTimes(3);
-test('will fail', () => {
-  expect(true).toBe(false);
-});
-```
-
-Returns the `jest` object for chaining.
+:::
